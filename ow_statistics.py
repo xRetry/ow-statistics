@@ -556,9 +556,6 @@ class DataFrame:
         t_open = data_captures.timestamp.min()
         t_start = t_open + pd.Timedelta('00:20:00')
         t_end = data_captures.timestamp.max()
-        #print('Desolation Opening: {}'.format(t_open))
-        #print('Match Start: {}'.format(t_start))
-        #print('Match End: {}'.format(t_end))
         return t_open, t_start, t_end
 
     def _filter(self, data=None, args={}, **conditions):
