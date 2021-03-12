@@ -57,6 +57,7 @@ class DataFrame:
         if outfit_tag is not None:
             self._load_outfit(alias=outfit_tag)
             zone_id = self._data[self._data.outfit_id == outfit_tag].zone_id.unique()
+            print('set_match.zone_id: ', zone_id)
             if len(zone_id) == 0:
                 raise NameError('No outfit with tag \'{}\' found in dataset!'.format(outfit_tag))
             elif len(zone_id) > 1:
@@ -71,6 +72,7 @@ class DataFrame:
                 outfit_id = df[df.outfit_id != '0'].outfit_id.iloc[0]
                 self._load_outfit(outfit_id=outfit_id)
         else:
+            print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
             raise AttributeError('Zone ID not found!\nAvailable Zone IDs: {}'.format(self.zone_ids))
 
     def reset_match(self):
@@ -626,6 +628,7 @@ class DataFrame:
             data = pd.concat([data, df], axis=0)
             print('done')
         self._data = data
+        print(self.zone_ids, len(self.zone_ids))
         if len(self.zone_ids) == 1:
             self.set_match(self.zone_ids[0])
 
@@ -659,11 +662,12 @@ class DataFrame:
                         body.format(m),
                         climit
                     ), typ='series')[0])
+                    print('Request')
                     break
                 except (ConnectionResetError, ValueError):
                     if i == n_max:
                         raise ConnectionResetError('Unable to load data from Census')
-                    print('Maximum Census requests reached. Retrying after 60s..')
+                    print('Census request limit reached. Waiting for 60s..')
                     time.sleep(61)
             if process:
                 ids_new[ids_new.columns[0]] = ids_new[ids_new.columns[0]]
@@ -731,7 +735,7 @@ class DataFrame:
                 'vehicle',
                 args={
                     'c:show': 'vehicle_id,name.en',
-                    'c:join':'vehicle_faction^show:faction_id^inject_at:faction_id^list:1'
+                    'c:join': 'vehicle_faction^show:faction_id^inject_at:faction_id^list:1'
                 })
             # TODO: Extract faction ids
             self._vehicles = df
