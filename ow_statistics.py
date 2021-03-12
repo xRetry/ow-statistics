@@ -57,7 +57,7 @@ class DataFrame:
         if outfit_tag is not None:
             self._load_outfit(alias=outfit_tag)
             zone_id = self._data[self._data.outfit_id == outfit_tag].zone_id.unique()
-            if len(zone_id) == 0:
+            if len(zone_id) == 0 and outfit_tag not in self._outfits_loaded.index:
                 raise NameError('No outfit with tag \'{}\' found in dataset!'.format(outfit_tag))
             elif len(zone_id) > 1:
                 raise LookupError('Multiple zone ids found for given outfit: {}\nUse zone id to find match instead.'.format(zone_id))
@@ -72,7 +72,9 @@ class DataFrame:
                 if self._outfits[k] is None:
                     df = self._filter(new_faction_id=i+1)
                     outfit_id = df[(df.outfit_id != '0')].outfit_id.iloc[0]
-                    self._load_outfit(outfit_id=outfit_id)
+                    outfit_tag = self._load_outfit(outfit_id=outfit_id)
+                    self._outfits[k] = outfit_tag
+            print(self._get_match_time())
         else:
             print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
             raise AttributeError('Zone ID not found!\nAvailable Zone IDs: {}'.format(self.zone_ids))
@@ -664,6 +666,7 @@ class DataFrame:
                 df = df[df.zone_id == zone_id]
             data = pd.concat([data, df], axis=0)
             print('done')
+        print('Loading Finished')
         self._data = data
         if len(self.zone_ids) == 1:
             self.set_match(self.zone_ids[0])
@@ -743,7 +746,6 @@ class DataFrame:
             self._data['outfit_id'] = self._data['outfit_id'].replace(outfit_id, tag)
             df = pd.DataFrame(df.members[0])
             faction_id = int(df.faction_id.iloc[0])
-            self._outfits[factions[faction_id-1]] = tag
             df['name'] = df['name'].apply(pd.Series)['first']
             df = df[['name', 'character_id', 'faction_id']].set_index('character_id')
             row = pd.Series({
@@ -753,6 +755,7 @@ class DataFrame:
             })
             row.name = tag
             self._outfits_loaded = self._outfits_loaded.append(row)
+            return tag
 
     def _get_players(self, faction: list, index=None, column=None):
         df = []
