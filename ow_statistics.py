@@ -52,13 +52,11 @@ class DataFrame:
             raise AttributeError('Invalid Theme Name! ({})\nAvailable Themes: {}'.format(theme_name, self.available_themes))
 
     def set_match(self, zone_id: str = None, outfit_tag: str = None):
-        print('CP: set_match', zone_id, outfit_tag)
         if zone_id is None and outfit_tag is None:
             raise AttributeError('Either zone_id or outfit_tag has to be provided!')
         if outfit_tag is not None:
             self._load_outfit(alias=outfit_tag)
             zone_id = self._data[self._data.outfit_id == outfit_tag].zone_id.unique()
-            print('set_match.zone_id: ', zone_id)
             if len(zone_id) == 0:
                 raise NameError('No outfit with tag \'{}\' found in dataset!'.format(outfit_tag))
             elif len(zone_id) > 1:
@@ -67,16 +65,11 @@ class DataFrame:
                 self._zone_id = zone_id[0]
 
         elif zone_id in self.zone_ids:
-            print('CP: set_match, zone_id in self.zone_ids')
             self._zone_id = zone_id
             keys = self._outfits.keys()
-            print(keys)
             for i, k in enumerate(keys):
                 df = self._filter(new_faction_id=i+1)
                 outfit_id = df[df.outfit_id != '0'].outfit_id.iloc[0]
-                print(k)
-                print(df)
-                print(outfit_id)
                 self._load_outfit(outfit_id=outfit_id)
         else:
             print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
@@ -98,8 +91,7 @@ class DataFrame:
         df.to_json(path)
 
     ''' Public Plotting Methods '''
-
-    def plot_facility_timeline(self, figsize=(14, 5)):
+    def plot_timeline_facility(self, figsize=(14, 5)):
         self._data_check()
         data_captures = self._filter(event_name='FacilityControl')
         t_open, t_start, t_end = self._get_match_time()
@@ -130,9 +122,19 @@ class DataFrame:
                 (row.timestamp - t_start).total_seconds() / 60])
         n_bases = [np.array(n_bases[0]), np.array(n_bases[1]), np.array(n_bases[2])]
 
-        self._plot_timeline(n_bases, 'Territory Timeline', 'Amount of Facilities', figsize=figsize)
+        plt.figure(figsize=figsize)
+        plt.plot([v[1] for v in n_bases[0]], [v[0] for v in n_bases[0]], c='purple')
+        plt.plot([v[1] for v in n_bases[1]], [v[0] for v in n_bases[1]], c='blue')
+        plt.plot([v[1] for v in n_bases[2]], [v[0] for v in n_bases[2]], c='red')
 
-    def plot_kills_timeline(self, figsize=(14, 5)):
+        plt.grid(True, alpha=0.2)
+        plt.title('Territory Timeline')
+        plt.xlabel('Elapsed Time [min]')
+        plt.ylabel('Amount of Facilities')
+        plt.show()
+
+
+    def plot_timeline_kills(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             'Death',
@@ -142,7 +144,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_deaths_timeline(self, figsize=(14, 5)):
+    def plot_timeline_deaths(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             'Death',
@@ -152,7 +154,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_revives_timeline(self, figsize=(14, 5)):
+    def plot_timeline_revives(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             '*Revive',
@@ -161,7 +163,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_repair_timeline(self, figsize=(14, 5)):
+    def plot_timeline_repair(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             '*Repair',
@@ -171,7 +173,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_vdestruction_timeline(self, figsize=(14, 5)):
+    def plot_timeline_vdestruction(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             '*Vehicle%20Destruction',
@@ -181,7 +183,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_cortium_timeline(self, figsize=(14, 5)):
+    def plot_timeline_cortium(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             '*Cortium%20Deposit',
@@ -191,7 +193,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_kdr_timeline(self, figsize=(14, 5)):
+    def plot_timeline_kdr(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             ['Death', 'Death'],
@@ -200,7 +202,7 @@ class DataFrame:
             column=['attacker_character_id', 'character_id'],
             figsize=figsize)
 
-    def plot_dpr_timeline(self, figsize=(14, 5)):
+    def plot_timeline_dpr(self, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             ['*Revive', 'Death'],
@@ -211,21 +213,22 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_kills_histogram(self, bins=(70, 70, 150), figsize=(14, 5)):
+    def plot_histogram_kills(self, bins=(70, 70, 150), figsize=(14, 5)):
         self._plot_hist('Kills', bins=bins, figsize=figsize)
 
-    def plot_deaths_histogram(self, bins=(90, 90, 110), figsize=(14, 5)):
+    def plot_histogram_deaths(self, bins=(90, 90, 110), figsize=(14, 5)):
         self._plot_hist('Deaths', bins=bins, figsize=figsize)
 
-    def plot_kdr_histogram(self, bins=(90, 90, 110), figsize=(14, 5)):
+    def plot_histogram_kdr(self, bins=(90, 90, 110), figsize=(14, 5)):
         self._plot_hist('KDR', bins=bins, figsize=figsize)
 
-    def plot_weapon_usage(self, faction):
+    def plot_weapon_kills(self, *factions):
+        factions = self._verify_factions(factions)
         df = self._calc_weapon_stats(
             'attacker_weapon_id',
             'attacker_character_id',
-            faction=faction,
-            ids=self._get_weapon_ids()
+            faction=factions,
+            ids=self._get_weapon_ids(column='name')
         )
         df = df.reset_index()\
             .groupby('attacker_weapon_id').sum()\
@@ -233,17 +236,18 @@ class DataFrame:
         self._plot_bar(
             df['index'].values,
             df.index.values,
-            'Weapon Usage - {}'.format(self._outfits_for_title(faction)),
+            'Weapon Usage - {}'.format(self._outfits_for_title(factions)),
             'Kills',
             0.2,
             color=self._get_weapon_ids('name', 'faction_id')
         )
 
-    def plot_weapon_deaths(self, faction):
+    def plot_weapon_deaths(self, *factions):
+        factions = self._verify_factions(factions)
         df = self._calc_weapon_stats(
             'attacker_weapon_id',
             'character_id',
-            faction=faction,
+            faction=factions,
             ids=self._get_weapon_ids()
         )
         df = df.reset_index()\
@@ -253,13 +257,14 @@ class DataFrame:
         self._plot_bar(
             df['index'].values,
             df.index.values,
-            'Death Causes - {}'.format(self._outfits_for_title(faction)),
+            'Death Causes - {}'.format(self._outfits_for_title(factions)),
             'Deaths',
             0.2,
             color=self._get_weapon_ids('name', 'faction_id')
         )
 
-    def plot_heavy_players(self, factions):
+    def plot_players_heavy(self, *factions):
+        factions = self._verify_factions(factions)
         self._plot_class_stats(
             factions,
             'Heavy Assault',
@@ -269,7 +274,8 @@ class DataFrame:
             'Kills'
         )
 
-    def plot_medic_players(self, factions):
+    def plot_players_medic(self, *factions):
+        factions = self._verify_factions(factions)
         self._plot_class_stats(
             factions,
             'Medic',
@@ -279,7 +285,8 @@ class DataFrame:
             'Kills'
         )
 
-    def plot_engineer_players(self, factions):
+    def plot_players_engineer(self, *factions):
+        factions = self._verify_factions(factions)
         self._plot_class_stats(
             factions,
             'Engineer',
@@ -289,7 +296,8 @@ class DataFrame:
             'Kills'
         )
 
-    def plot_infiltrator_players(self, factions):
+    def plot_players_infiltrator(self, *factions):
+        factions = self._verify_factions(factions)
         self._plot_class_stats(
             factions,
             'Infiltrator',
@@ -299,7 +307,8 @@ class DataFrame:
             'Kills'
         )
 
-    def plot_la_players(self, factions):
+    def plot_players_la(self, *factions):
+        factions = self._verify_factions(factions)
         self._plot_class_stats(
             factions,
             'Light Assault',
@@ -309,7 +318,8 @@ class DataFrame:
             'Kills'
         )
 
-    def plot_vehicle_kills(self, factions, color='blue'):
+    def plot_vehicle_kills(self, *factions, color='blue'):
+        factions = self._verify_factions(factions)
         df = self._calc_weapon_stats('attacker_vehicle_id', 'attacker_character_id', factions, self._get_vehicle_ids(column='name'))
         df = df.reset_index().groupby('attacker_vehicle_id').sum().sort_values('index', ascending=True)
         self._plot_bar(
@@ -321,20 +331,23 @@ class DataFrame:
             color=color
         )
 
-    def plot_vehicle_deaths(self, factions, color='blue'):
+    # TODO: Fix method
+    def _plot_vehicle_deaths(self, *factions, color='blue'):
+        factions = self._verify_factions(factions)
         df = self._calc_weapon_stats('attacker_vehicle_id', 'character_id', factions,
                                      self._get_vehicle_ids(column='name'))
         df = df.reset_index().groupby('attacker_vehicle_id').sum().sort_values('index', ascending=True)
         self._plot_bar(
             df['index'].values,
             df.index.values,
-            'Vehicle Usage - {}'.format(self._outfits_for_title(factions)),
+            'Vehicle Deaths - {}'.format(self._outfits_for_title(factions)),
             'Kills',
             0.23,
             color=color
         )
 
-    def plot_vdestruction_players(self, factions):
+    def plot_players_vdestruction(self, *factions):
+        factions = self._verify_factions(factions)
         self._plot_exp_stats(
             '*Vehicle%20Destruction',
             'count',
@@ -607,6 +620,21 @@ class DataFrame:
         if self._zone_id is None:
             raise ValueError('No match has been selected! Use \'set_match(...)\' to select one.')
 
+    def _verify_factions(self, factions):
+        f_vaild = list(self._outfits.keys())
+        correct = []
+        wrong = []
+        for f in factions:
+            if not isinstance(f, str):
+                raise TypeError('Input has to be a String. Use \'value\' or \"value\"')
+            if f not in f_vaild:
+                wrong.append(f)
+            else:
+                correct.append(f)
+        if len(wrong) > 0:
+            raise KeyError('Invalid input(s) {}. Valid inputs are: {}'.format(wrong, f_vaild))
+        return correct
+
     ''' Data Loading Methods '''
 
     def _from_json(self, files, zone_id=None):
@@ -668,7 +696,6 @@ class DataFrame:
                         body.format(m),
                         climit
                     ), typ='series')[0])
-                    print('Request')
                     break
                 except (ConnectionResetError, ValueError):
                     if i == n_max:
