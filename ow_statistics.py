@@ -41,6 +41,7 @@ class DataFrame:
             'TR': 'red',
             'NS': 'grey'
         }
+        self._outfits_old = {}
 
         self.set_theme(self._theme)
         self._from_json(files)
@@ -62,20 +63,29 @@ class DataFrame:
             elif len(zone_id) > 1:
                 raise LookupError('Multiple zone ids found for given outfit: {}\nUse zone id to find match instead.'.format(zone_id))
             else:
-                self._zone_id = zone_id[0]
+                self.set_match(zone_id=zone_id[0])
 
         elif zone_id in self.zone_ids:
+            self.reset_match()
             self._zone_id = zone_id
             keys = self._outfits.keys()
             for i, k in enumerate(keys):
-                df = self._filter(new_faction_id=i+1)
-                outfit_id = df[df.outfit_id != '0'].outfit_id.iloc[0]
-                self._load_outfit(outfit_id=outfit_id)
+                if self._outfits[k] is None:
+                    df = self._filter(new_faction_id=i+1)
+                    outfit_id = df[(df.outfit_id != '0')].outfit_id.iloc[0]
+                    try:
+                        self._players[outfit_id] = self._outfits_old[outfit_id][0]
+                        self._outfits[self._outfits_old[outfit_id][1]] = outfit_id
+                    except KeyError:
+                        self._load_outfit(outfit_id=outfit_id)
         else:
             print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
             raise AttributeError('Zone ID not found!\nAvailable Zone IDs: {}'.format(self.zone_ids))
 
     def reset_match(self):
+        for o in self._outfits.items():
+            if o[1] is not None:
+                self._outfits_old[o[1]] = [self._players[o[1]], o[0]]
         self._zone_id = None
         self._outfits = {
             'VS': None,
@@ -438,6 +448,7 @@ class DataFrame:
             figsize = (12, y_size)
         plt.figure(figsize=figsize)
         blist = plt.barh(labels, values)
+        plt.ylim(-1, len(values))
 
         if isinstance(color, pd.Series):
             ids = color
@@ -700,8 +711,13 @@ class DataFrame:
                 except (ConnectionResetError, ValueError):
                     if i == n_max:
                         raise ConnectionResetError('Unable to load data from Census')
-                    print('Census request limit reached. Waiting for 60s..')
-                    time.sleep(61)
+                    t_wait = 60
+                    for t in range(t_wait):
+                        end = '\r'
+                        if t_wait-t == 0:
+                            end = '\n'
+                        print('Census request limit reached. Waiting for {}s..'.format(t_wait-t), end=end)
+                        time.sleep(1)
             if process:
                 ids_new[ids_new.columns[0]] = ids_new[ids_new.columns[0]]
                 ids_new = ids_new.set_index(ids_new.columns[0])
@@ -715,7 +731,6 @@ class DataFrame:
 
     def _load_outfit(self, **query_args):
         factions = ['VS', 'NC', 'TR']
-        df = None
         df = self._from_census(
             'outfit',
             args={**query_args, 'c:resolve': 'member_character'},
