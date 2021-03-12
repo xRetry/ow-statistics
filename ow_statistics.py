@@ -335,19 +335,19 @@ class DataFrame:
         )
 
     # TODO: Fix method
-    def _plot_vehicle_deaths(self, *factions, color='blue'):
-        factions = self._verify_factions(factions)
-        df = self._calc_weapon_stats('attacker_vehicle_id', 'character_id', factions,
-                                     self._get_vehicle_ids(column='name'))
-        df = df.reset_index().groupby('attacker_vehicle_id').sum().sort_values('index', ascending=True)
-        self._plot_bar(
-            df['index'].values,
-            df.index.values,
-            'Vehicle Deaths - {}'.format(self._outfits_for_title(factions)),
-            'Kills',
-            0.23,
-            color=color
-        )
+    # def _plot_vehicle_deaths(self, *factions, color='blue'):
+    #     factions = self._verify_factions(factions)
+    #     df = self._calc_weapon_stats('attacker_vehicle_id', 'character_id', factions,
+    #                                  self._get_vehicle_ids(column='name'))
+    #     df = df.reset_index().groupby('attacker_vehicle_id').sum().sort_values('index', ascending=True)
+    #     self._plot_bar(
+    #         df['index'].values,
+    #         df.index.values,
+    #         'Vehicle Deaths - {}'.format(self._outfits_for_title(factions)),
+    #         'Kills',
+    #         0.23,
+    #         color=color
+    #     )
 
     def plot_players_vdestruction(self, *factions):
         factions = self._verify_factions(factions)
