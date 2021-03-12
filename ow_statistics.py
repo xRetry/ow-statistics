@@ -52,6 +52,7 @@ class DataFrame:
             raise AttributeError('Invalid Theme Name! ({})\nAvailable Themes: {}'.format(theme_name, self.available_themes))
 
     def set_match(self, zone_id: str = None, outfit_tag: str = None):
+        print('CP: set_match', zone_id, outfit_tag)
         if zone_id is None and outfit_tag is None:
             raise AttributeError('Either zone_id or outfit_tag has to be provided!')
         if outfit_tag is not None:
@@ -66,10 +67,16 @@ class DataFrame:
                 self._zone_id = zone_id[0]
 
         elif zone_id in self.zone_ids:
+            print('CP: set_match, zone_id in self.zone_ids')
+            self._zone_id = zone_id
             keys = self._outfits.keys()
+            print(keys)
             for i, k in enumerate(keys):
                 df = self._filter(new_faction_id=i+1)
                 outfit_id = df[df.outfit_id != '0'].outfit_id.iloc[0]
+                print(k)
+                print(df)
+                print(outfit_id)
                 self._load_outfit(outfit_id=outfit_id)
         else:
             print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
@@ -628,7 +635,6 @@ class DataFrame:
             data = pd.concat([data, df], axis=0)
             print('done')
         self._data = data
-        print(self.zone_ids, len(self.zone_ids))
         if len(self.zone_ids) == 1:
             self.set_match(self.zone_ids[0])
 
