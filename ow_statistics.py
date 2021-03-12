@@ -34,14 +34,13 @@ class DataFrame:
             'NC': None,
             'TR': None
         }
-        self._players = {}
+        self._outfits_loaded = pd.DataFrame(columns=['outfit_tag', 'outfit_id', 'faction', 'players']).set_index('outfit_tag')
         self._colors = {
             'VS': 'purple',
             'NC': 'blue',
             'TR': 'red',
             'NS': 'grey'
         }
-        self._outfits_old = {}
 
         self.set_theme(self._theme)
         self._from_json(files)
@@ -73,26 +72,18 @@ class DataFrame:
                 if self._outfits[k] is None:
                     df = self._filter(new_faction_id=i+1)
                     outfit_id = df[(df.outfit_id != '0')].outfit_id.iloc[0]
-                    try:
-                        self._players[outfit_id] = self._outfits_old[outfit_id][0]
-                        self._outfits[self._outfits_old[outfit_id][1]] = outfit_id
-                    except KeyError:
-                        self._load_outfit(outfit_id=outfit_id)
+                    self._load_outfit(outfit_id=outfit_id)
         else:
             print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
             raise AttributeError('Zone ID not found!\nAvailable Zone IDs: {}'.format(self.zone_ids))
 
     def reset_match(self):
-        for o in self._outfits.items():
-            if o[1] is not None:
-                self._outfits_old[o[1]] = [self._players[o[1]], o[0]]
         self._zone_id = None
         self._outfits = {
             'VS': None,
             'NC': None,
             'TR': None
         }
-        self._players = {}
 
     def save_data(self, path='ow_data.json', selected_match=True):
         df = self._data
@@ -558,7 +549,7 @@ class DataFrame:
         return df
 
     def _player_stats(self, outfit_tag):
-        players = self._players[outfit_tag]
+        players = self._outfits_loaded.loc[outfit_tag].players
         data_kills = self._filter(event_name='Death', attacker_character_id=players.index)
         data_kills['attacker_character_id'] = data_kills['attacker_character_id'].replace(players.to_dict()['name'])
 
@@ -615,7 +606,7 @@ class DataFrame:
         if isinstance(faction, str): faction = [faction]
         players = []
         for f in faction:
-            players.append(self._players[self._outfits[f]])
+            players.append(self._outfits_loaded.loc[self._outfits[f]].players)
         return pd.concat(players)
 
     def _outfits_for_title(self, faction):
@@ -707,6 +698,7 @@ class DataFrame:
                         body.format(m),
                         climit
                     ), typ='series')[0])
+                    #print('requesting..', id_category, body.format(m))
                     break
                 except (ConnectionResetError, ValueError):
                     if i == n_max:
@@ -714,10 +706,12 @@ class DataFrame:
                     t_wait = 60
                     for t in range(t_wait):
                         end = '\r'
-                        if t_wait-t == 0:
-                            end = '\n'
-                        print('Census request limit reached. Waiting for {}s..'.format(t_wait-t), end=end)
+                        if t_wait-t+1 == 0:
+                            end = ''
+                        print('Census request limit reached. Waiting for {}s..'.format(t_wait-t+1), end=end)
+
                         time.sleep(1)
+                    #print('\n')
             if process:
                 ids_new[ids_new.columns[0]] = ids_new[ids_new.columns[0]]
                 ids_new = ids_new.set_index(ids_new.columns[0])
@@ -731,25 +725,39 @@ class DataFrame:
 
     def _load_outfit(self, **query_args):
         factions = ['VS', 'NC', 'TR']
-        df = self._from_census(
-            'outfit',
-            args={**query_args, 'c:resolve': 'member_character'},
-            process=False
-        )
-        tag = df.alias[0]
-        outfit_id = df.outfit_id.loc[0]
-        self._data['outfit_id'] = self._data['outfit_id'].replace(outfit_id, tag)
-        df = pd.DataFrame(df.members[0])
-        faction_id = int(df.faction_id.iloc[0])
-        self._outfits[factions[faction_id-1]] = tag
-        df['name'] = df['name'].apply(pd.Series)['first']
-        df = df[['name', 'character_id', 'faction_id']].set_index('character_id')
-        self._players[tag] = df
+        val = list(query_args.values())[0]
+        if val in self._outfits_loaded.outfit_id.values:
+            row = self._outfits_loaded[self._outfits_loaded.outfit_id == val]
+            self._outfits[row.faction] = row.name
+        elif val in self._outfits_loaded.index:
+            row = self._outfits_loaded.loc[val]
+            self._outfits[row.faction] = row.name
+        else:
+            df = self._from_census(
+                'outfit',
+                args={**query_args, 'c:resolve': 'member_character'},
+                process=False
+            )
+            tag = df.alias[0]
+            outfit_id = df.outfit_id.loc[0]
+            self._data['outfit_id'] = self._data['outfit_id'].replace(outfit_id, tag)
+            df = pd.DataFrame(df.members[0])
+            faction_id = int(df.faction_id.iloc[0])
+            self._outfits[factions[faction_id-1]] = tag
+            df['name'] = df['name'].apply(pd.Series)['first']
+            df = df[['name', 'character_id', 'faction_id']].set_index('character_id')
+            row = pd.Series({
+                'outfit_id': outfit_id,
+                'faction': factions[faction_id-1],
+                'players': df
+            })
+            row.name = tag
+            self._outfits_loaded = self._outfits_loaded.append(row)
 
     def _get_players(self, faction: list, index=None, column=None):
         df = []
         for f in faction:
-            df.append(self._players[self._outfits[f]])
+            df.append(self._outfits_loaded.loc[self._outfits[f]].players)
         df = pd.concat(df)
         if index is not None:
             df = df.reset_index().set_index(index)
