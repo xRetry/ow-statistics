@@ -67,17 +67,19 @@ class DataFrame:
         elif zone_id in self.zone_ids:
             self.reset_match()
             self._zone_id = zone_id
-            keys = self._outfits.keys()
+            keys = self._outfits.copy().keys()
             for i, k in enumerate(keys):
                 if self._outfits[k] is None:
                     df = self._filter(new_faction_id=i+1)
                     outfit_id = df[(df.outfit_id != '0')].outfit_id.iloc[0]
                     outfit_tag = self._load_outfit(outfit_id=outfit_id)
                     self._outfits[k] = outfit_tag
-            print(self._get_match_time())
+            t_open, t_start, t_end = self._get_match_time()
+            print('Times of loaded match:\nOpen: {}\nStart: {}\nEnd: {}'.format(t_open, t_start, t_end))
         else:
             print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
             raise AttributeError('Zone ID not found!\nAvailable Zone IDs: {}'.format(self.zone_ids))
+
 
     def reset_match(self):
         self._zone_id = None
@@ -731,10 +733,10 @@ class DataFrame:
         val = list(query_args.values())[0]
         if val in self._outfits_loaded.outfit_id.values:
             row = self._outfits_loaded[self._outfits_loaded.outfit_id == val]
-            self._outfits[row.faction] = row.name
+            return row.name
         elif val in self._outfits_loaded.index:
             row = self._outfits_loaded.loc[val]
-            self._outfits[row.faction] = row.name
+            return row.name
         else:
             df = self._from_census(
                 'outfit',
