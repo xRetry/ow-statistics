@@ -52,22 +52,26 @@ class DataFrame:
             raise AttributeError('Invalid Theme Name! ({})\nAvailable Themes: {}'.format(theme_name, self.available_themes))
 
     def set_match(self, zone_id: str = None, outfit_tag: str = None):
+        # no input
         if zone_id is None and outfit_tag is None:
             raise AttributeError('Either zone_id or outfit_tag has to be provided!')
-        if outfit_tag is not None:
+        # outfit tag as input -> get zone id from tag
+        elif outfit_tag is not None:
             self._load_outfit(alias=outfit_tag)
-            zone_id = self._data[self._data.outfit_id == outfit_tag].zone_id.unique()
-            if len(zone_id) == 0 and outfit_tag not in self._outfits_loaded.index:
-                raise NameError('No outfit with tag \'{}\' found in dataset!'.format(outfit_tag))
-            elif len(zone_id) > 1:
-                raise LookupError('Multiple zone ids found for given outfit: {}\nUse zone id to find match instead.'.format(zone_id))
+            zone_ids_id = self._data[self._data.outfit_id == self._outfits_loaded.loc[outfit_tag].outfit_id].zone_id.unique()
+            zone_ids_tag = self._data[self._data.outfit_id == outfit_tag].zone_id.unique()
+            zone_ids = np.concatenate([zone_ids_id, zone_ids_tag])
+            if len(zone_ids) == 0:
+                raise KeyError('No matches from outfit \'{}\' found in dataset.'.format(outfit_tag))
+            if len(zone_ids) > 1:
+                raise LookupError('Multiple Zone IDs found for given outfit: {}\nUse zone id to find match instead.'.format(zone_ids))
             else:
                 self.set_match(zone_id=zone_id[0])
-
+        # zone id as input
         elif zone_id in self.zone_ids:
             self.reset_match()
             self._zone_id = zone_id
-            keys = self._outfits.copy().keys()
+            keys = self._outfits.keys()
             for i, k in enumerate(keys):
                 if self._outfits[k] is None:
                     df = self._filter(new_faction_id=i+1)
@@ -77,9 +81,7 @@ class DataFrame:
             t_open, t_start, t_end = self._get_match_time()
             print('Times of loaded match:\nOpen: {}\nStart: {}\nEnd: {}'.format(t_open, t_start, t_end))
         else:
-            print('outfit_tag None and zone_id not in self.zone_ids, ', zone_id, self.zone_ids)
             raise AttributeError('Zone ID not found!\nAvailable Zone IDs: {}'.format(self.zone_ids))
-
 
     def reset_match(self):
         self._zone_id = None
@@ -137,7 +139,6 @@ class DataFrame:
         plt.xlabel('Elapsed Time [min]')
         plt.ylabel('Amount of Facilities')
         plt.show()
-
 
     def plot_timeline_kills(self, figsize=(14, 5)):
         self._data_check()
@@ -362,6 +363,50 @@ class DataFrame:
             faction=factions
         )
 
+    def plot_players_revives(self, *factions):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            '*Revive',
+            'count',
+            'Total Amount of Revives',
+            'Revives',
+            y_offset=0.2,
+            faction=factions
+        )
+
+    def plot_players_repairs(self, *factions):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            '*Repair',
+            'sum',
+            'Total Amount of Repair XP',
+            'Repair XP',
+            y_offset=0.2,
+            faction=factions
+        )
+
+    def plot_players_heals(self, *factions):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            '*Heal',
+            'sum',
+            'Total Amount of Heal XP',
+            'Heal XP',
+            y_offset=0.2,
+            faction=factions
+        )
+
+    def plot_players_spawns(self, *factions):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            ['Squad%20Spawn', 'Spawn%20Bonus'],
+            'count',
+            'Total Amount of Spawn-Ins provided',
+            'Spawn-Ins',
+            y_offset=0.2,
+            faction=factions
+        )
+
     ''' Private Plotting Methods '''
 
     def _plot_timeline(self, event_name: str or list, title, ylabel, column: str or list = 'character_id', agg_fun='count', climit: int or list = 100000, figsize=(14, 5)):
@@ -475,7 +520,7 @@ class DataFrame:
         else:
             data_filtered = self._filter(event_name=event_name)
 
-        players = list(self._players.values())
+        players = list(self._outfits_loaded[self._outfits_loaded.index.isin(self._outfits.values())].players.values())
         vals = [[[0, 0]], [[0, 0]], [[0, 0]]]
         for p in range(len(players)):
             for i, row in self._filter(data=data_filtered, args={column: players[p].index}).iterrows():
@@ -627,6 +672,8 @@ class DataFrame:
             raise ValueError('No match has been selected! Use \'set_match(...)\' to select one.')
 
     def _verify_factions(self, factions):
+        if len(factions) == 0:
+            factions = ('VS', 'NC', 'TR')
         f_vaild = list(self._outfits.keys())
         correct = []
         wrong = []
@@ -743,6 +790,8 @@ class DataFrame:
                 args={**query_args, 'c:resolve': 'member_character'},
                 process=False
             )
+            if len(df) == 0:
+                raise KeyError('No outfit exists with {} {}.'.format(list(query_args.keys())[0], list(query_args.values())[0]))
             tag = df.alias[0]
             outfit_id = df.outfit_id.loc[0]
             self._data['outfit_id'] = self._data['outfit_id'].replace(outfit_id, tag)
