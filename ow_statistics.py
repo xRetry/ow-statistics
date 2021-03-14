@@ -66,7 +66,7 @@ class DataFrame:
             if len(zone_ids) > 1:
                 raise LookupError('Multiple Zone IDs found for given outfit: {}\nUse zone id to find match instead.'.format(zone_ids))
             else:
-                self.set_match(zone_id=zone_id[0])
+                self.set_match(zone_id=zone_ids[0])
         # zone id as input
         elif zone_id in self.zone_ids:
             self.reset_match()
@@ -98,6 +98,8 @@ class DataFrame:
         df.to_json(path)
 
     ''' Public Plotting Methods '''
+
+    # TODO: Fix spike at the end
     def plot_timeline_facility(self, figsize=(14, 5)):
         self._data_check()
         data_captures = self._filter(event_name='FacilityControl')
@@ -150,13 +152,21 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_timeline_deaths(self, figsize=(14, 5)):
+    def plot_timeline_deaths(self, with_revives=True, figsize=(14, 5)):
         self._data_check()
+        event_name = 'Death'
+        column = 'character_id'
+        sub_idx = None
+        if with_revives:
+            event_name = [event_name, '*Revive']
+            column = [column, column]
+            sub_idx = [0, 1]
         self._plot_timeline(
-            'Death',
+            event_name,
             'Timeline of Deaths',
             'Amount of Deaths',
-            column='character_id',
+            column=column,
+            sub_idx=sub_idx,
             figsize=figsize
         )
 
@@ -199,7 +209,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def plot_timeline_kdr(self, figsize=(14, 5)):
+    def plot_timeline_kdr(self, with_revives=True, figsize=(14, 5)):
         self._data_check()
         self._plot_timeline(
             ['Death', 'Death'],
@@ -212,20 +222,20 @@ class DataFrame:
         self._data_check()
         self._plot_timeline(
             ['*Revive', 'Death'],
-            'Proportion Of Deaths That Got Revived',
+            'Proportion of deaths that got revived',
             'Revives per Deaths',
             column=['character_id', 'character_id'],
             climit=[1000, 2],
             figsize=figsize
         )
 
-    def plot_histogram_kills(self, bins=(70, 70, 150), figsize=(14, 5)):
+    def plot_histogram_kills(self, bins=(70, 70, 70), figsize=(14, 5)):
         self._plot_hist('Kills', bins=bins, figsize=figsize)
 
-    def plot_histogram_deaths(self, bins=(90, 90, 110), figsize=(14, 5)):
+    def plot_histogram_deaths(self, bins=(90, 90, 90), figsize=(14, 5)):
         self._plot_hist('Deaths', bins=bins, figsize=figsize)
 
-    def plot_histogram_kdr(self, bins=(90, 90, 110), figsize=(14, 5)):
+    def plot_histogram_kdr(self, bins=(90, 90, 90), figsize=(14, 5)):
         self._plot_hist('KDR', bins=bins, figsize=figsize)
 
     def plot_weapon_kills(self, *factions):
@@ -407,14 +417,23 @@ class DataFrame:
             faction=factions
         )
 
+    def player_stats(self, *factions, with_revives=True):
+        factions = self._verify_factions(factions)
+        df = self._player_stats(factions, with_revives=with_revives)
+        return df
+
     ''' Private Plotting Methods '''
 
-    def _plot_timeline(self, event_name: str or list, title, ylabel, column: str or list = 'character_id', agg_fun='count', climit: int or list = 100000, figsize=(14, 5)):
+    def _plot_timeline(self, event_name:str or list, title, ylabel, column:str or list='character_id', agg_fun='count', sub_idx:list=None, div_idx:list=None, climit:int or list=100000, figsize=(14, 5)):
         if isinstance(event_name, list):
             if not isinstance(climit, list): climit = [climit, climit]
-            val1 = self._calc_timeline(event_name[0], column[0], agg_fun=agg_fun, climit=climit[0])
-            val2 = self._calc_timeline(event_name[1], column[1], agg_fun=agg_fun, climit=climit[1])
-            vals = self._convert_timeline(val1, val2)
+            vals = []
+            for i in range(len(event_name)):
+                vals.append(self._calc_timeline(event_name[i], column[i], agg_fun=agg_fun, climit=climit[i]))
+            if sub_idx is not None:
+                vals = self._substract_timeline(vals[sub_idx[0]], vals[sub_idx[1]])
+            if div_idx is not None:
+                vals = self._divide_timeline(vals[div_idx[0]], vals[div_idx[1]])
         else:
             vals = self._calc_timeline(event_name, column, agg_fun=agg_fun, climit=climit)
 
@@ -520,27 +539,51 @@ class DataFrame:
         else:
             data_filtered = self._filter(event_name=event_name)
 
-        players = list(self._outfits_loaded[self._outfits_loaded.index.isin(self._outfits.values())].players.values())
+        players = self._outfits_loaded[self._outfits_loaded.index.isin(self._outfits.values())].players
         vals = [[[0, 0]], [[0, 0]], [[0, 0]]]
         for p in range(len(players)):
-            for i, row in self._filter(data=data_filtered, args={column: players[p].index}).iterrows():
+            for i, row in self._filter(data=data_filtered, args={column: players.iloc[p].index}).iterrows():
                 if row.timestamp < t_start: continue
                 val_old = vals[p][-1][0]
-                if event_name == 'GainExperience':
+                if event_name != 'Death':
                     if agg_fun == 'sum':
-                        val_new = vals[p][-1][0] + row.amount
+                        val_new = val_old + row.amount
                     elif agg_fun == 'count':
-                        val_new = vals[p][-1][0] + 1
+                        val_new = val_old + 1
                     else:
                         raise AttributeError(
                             'Invalid aggregation function \'{}\'. Use \'sum\' or \'count\'.'.format(agg_fun))
                 else:
                     val_new = val_old + 1
-                vals[p].append([val_old, (row.timestamp - t_start).total_seconds() / 60])
+                #vals[p].append([val_old, (row.timestamp - t_start).total_seconds() / 60])
                 vals[p].append([val_new, (row.timestamp - t_start).total_seconds() / 60])
         return vals
 
-    def _convert_timeline(self, val1, val2):
+    def _substract_timeline(self, val1, val2):
+        sub = [[[0, 0]], [[0, 0]], [[0, 0]]]
+        for o in range(3):
+            v1 = np.array(val1[o])
+            v2 = np.array(val2[o])
+            v1_idx = 0
+            v2_idx = 0
+            while True:
+                if v1_idx + 1 == len(v1): break
+                if v2_idx + 1 == len(v2): break
+
+                t_v1_next = v1[v1_idx + 1, 1]
+                t_v2_next = v2[v2_idx + 1, 1]
+                if t_v1_next < t_v2_next:
+                    v1_idx += 1
+                    sub[o].append([sub[o][-1][0]+1, t_v1_next])
+                elif t_v1_next > t_v2_next:
+                    v2_idx += 1
+                    sub[o].append([sub[o][-1][0] - 1, t_v2_next])
+                else:
+                    v1_idx += 1
+                    v2_idx += 1
+        return sub
+
+    def _divide_timeline(self, val1, val2):
         frac = [[[0, 0]], [[0, 0]], [[0, 0]]]
         for o in range(3):
             t_cur = 0
@@ -575,7 +618,7 @@ class DataFrame:
         df = df.groupby([char_column, wpn_column]).count().sort_values('index', ascending=True).reset_index()
         return df
 
-    def _calc_exp_stats(self, url_name, agg_fun, faction=('VS', 'NC', 'TR'), climit=10000):
+    def _calc_exp_stats(self, url_name, agg_fun, char_column='character_id', faction=('VS', 'NC', 'TR'), climit=10000):
         # Getting Players
         players = self._players_from_faction(faction)
 
@@ -585,42 +628,50 @@ class DataFrame:
             event_name='GainExperience',
             args={'character_id': players.index, 'experience_id': ids.set_index('experience_id').index}
         )
-        df['character_id'] = df['character_id'].replace(players.to_dict()['name'])
-
+        df[char_column] = df[char_column].replace(players.to_dict()['name'])
         # Grouping
         if agg_fun == 'count':
-            df = df.groupby('character_id').count().sort_values('amount', ascending=True).reset_index()
+            df = df[[char_column, 'amount']].groupby(char_column).count().sort_values('amount', ascending=True).reset_index()
         elif agg_fun == 'sum':
-            df = df.groupby('character_id').sum().sort_values('amount', ascending=True).reset_index()
+            df['amount'] = df['amount'].astype('float64')
+            df = df[[char_column, 'amount']].groupby(char_column).sum().sort_values('amount', ascending=True).reset_index()
         else:
             raise AttributeError('Invalid aggregation function \'{}\'. Use \'sum\' or \'count\'.'.format(agg_fun))
 
         return df
 
-    def _player_stats(self, outfit_tag):
-        players = self._outfits_loaded.loc[outfit_tag].players
-        data_kills = self._filter(event_name='Death', attacker_character_id=players.index)
-        data_kills['attacker_character_id'] = data_kills['attacker_character_id'].replace(players.to_dict()['name'])
+    def _player_stats(self, factions, with_revives=True):
+        df = pd.DataFrame()
+        for f in factions:
+            players = self._outfits_loaded.loc[self._outfits[f]].players
+            data_kills = self._filter(event_name='Death', attacker_character_id=players.index)
+            data_kills['attacker_character_id'] = data_kills['attacker_character_id'].replace(players.to_dict()['name'])
 
-        data_deaths = self._filter(event_name='Death', character_id=players.index)
-        data_deaths['character_id'] = data_deaths['character_id'].replace(players.to_dict()['name'])
+            data_deaths = self._filter(event_name='Death', character_id=players.index)
+            data_deaths['character_id'] = data_deaths['character_id'].replace(players.to_dict()['name'])
 
-        kills = data_kills.groupby(by=['attacker_character_id']).count()['character_id']
-        headshots = data_kills[data_kills['is_headshot'] == 1]\
-            .groupby(by=['attacker_character_id']).count()['timestamp']
-        deaths = data_deaths.groupby(by=['character_id']).count()['event_name']
-        data_players = pd.concat([kills, deaths, headshots], axis=1)\
-            .rename(columns={"character_id": "Kills", "event_name": "Deaths", "timestamp": "Headshots"})\
-            .replace(np.nan, 0)\
-            .astype('int')
-        data_players['KDR'] = (data_players['Kills'] / data_players['Deaths'])\
+            kills = data_kills.groupby(by=['attacker_character_id']).count()['character_id']
+            headshots = data_kills[data_kills['is_headshot'] == '1']\
+                .groupby(by=['attacker_character_id']).count()['timestamp']
+            deaths = data_deaths.groupby(by=['character_id']).count()['event_name']
+            data_players = pd.concat([kills, deaths, headshots], axis=1)\
+                .rename(columns={"character_id": "Kills", "event_name": "Deaths", "timestamp": "Headshots"})\
+                .replace(np.nan, 0)\
+                .astype('int')
+            df = pd.concat([df, data_players])
+        if with_revives:
+            df_rev = self._calc_exp_stats('*Revive', 'count', char_column='other_id', faction=factions)
+            df['Deaths'] = df['Deaths'].sub(df_rev.set_index('other_id').astype('int64')['amount']).fillna(df['Deaths'])
+        # Add KDR
+        df['KDR'] = (df['Kills'] / df['Deaths'])\
             .replace(np.inf, 0)\
             .apply(round, ndigits=2)
-        data_players['HSR'] = (data_players['Headshots'] / data_players['Kills'] * 100)\
+        # Add HSR
+        df['HSR'] = (df['Headshots'] / df['Kills'] * 100)\
             .replace(np.inf, 0)\
             .replace(np.nan, 0)\
             .apply(round)
-        return data_players
+        return df
 
     ''' Utility Methods '''
 
@@ -698,12 +749,14 @@ class DataFrame:
         df = None
         for f in files:
             print('Loading File \'{}\' ... '.format(f), end='')
-            for i in range(500):
+            max_tries = 500
+            for i in range(max_tries):
                 try:
                     df = pd.read_json(f, orient='list', dtype=False)
                     break
                 except ValueError:
-                    pass
+                    if i == max_tries-1:
+                        raise LookupError('Failed to load file \'{}\''.format(f))
             try:
                 df = df.payload.apply(pd.Series)
                 df = df[(df.zone_id.isin(zone_ids.index) == False) & (pd.isna(df.zone_id) == False)]
@@ -847,7 +900,7 @@ class DataFrame:
                     'c:show': 'vehicle_id,name.en',
                     'c:join': 'vehicle_faction^show:faction_id^inject_at:faction_id^list:1'
                 })
-            # TODO: Extract faction ids
+            # TODO: Extract faction ids for coloring
             self._vehicles = df
         df = self._vehicles.copy()
         if index is not None:
