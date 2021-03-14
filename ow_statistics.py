@@ -502,7 +502,7 @@ class DataFrame:
         fig, axs = plt.subplots(len(self._outfits), 1, sharex=True, sharey=True, figsize=figsize)
         i = 0
         for fac, tag in self._outfits.items():
-            data = self._player_stats(tag)
+            data = self._player_stats([fac])
             axs[i].hist(data[row_name], color=self._colors.get(fac), bins=bins[i])
             axs[i].grid(True, alpha=0.2)
             axs[i].set_ylabel('Amount of Players')
@@ -597,7 +597,7 @@ class DataFrame:
                 if row.timestamp < t_start: continue
                 val_old = val[-1][0]
                 if agg_fun == 'sum':
-                    val_new = val_old + row.amount
+                    val_new = val_old + int(row.amount)
                 elif agg_fun == 'count':
                     val_new = val_old + 1
                 else:
@@ -727,6 +727,7 @@ class DataFrame:
         return df
 
     def _player_stats(self, factions, with_revives=True):
+        factions = self._verify_factions(factions)
         df = pd.DataFrame()
         for f in factions:
             players = self._outfits_loaded.loc[self._outfits[f]].players
