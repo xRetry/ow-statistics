@@ -280,7 +280,7 @@ class DataFrame:
             'attacker_weapon_id',
             'character_id',
             faction=factions,
-            ids=self._get_weapon_ids()
+            ids=self._get_weapon_ids(column='name')
         )
         df = df.reset_index()\
             .groupby('attacker_weapon_id').sum()\
