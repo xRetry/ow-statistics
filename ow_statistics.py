@@ -677,10 +677,10 @@ class DataFrame:
                     k_idx += 1
                     d_idx += 1
                     t_cur = t_k
-                try:
-                    frac.append([v1[k_idx, 0] / v2[d_idx, 0], t_cur])
-                except ZeroDivisionError:
+                if v2[d_idx, 0] == 0:
                     frac.append([v1[k_idx, 0], t_cur])
+                else:
+                    frac.append([v1[k_idx, 0] / v2[d_idx, 0], t_cur])
             fracs[f] = frac
         return fracs
 
