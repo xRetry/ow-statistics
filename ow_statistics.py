@@ -438,9 +438,8 @@ class DataFrame:
             vals = self._calc_timeline(event_name, column, agg_fun=agg_fun, climit=climit)
 
         plt.figure(figsize=figsize)
-        plt.plot([v[1] for v in vals[0]], [v[0] for v in vals[0]], c='purple')
-        plt.plot([v[1] for v in vals[1]], [v[0] for v in vals[1]], c='blue')
-        plt.plot([v[1] for v in vals[2]], [v[0] for v in vals[2]], c='red')
+        for f in self._outfits.keys():
+            plt.plot([v[1] for v in vals[f]], [v[0] for v in vals[f]], c=self._colors[f])
 
         plt.grid(True, alpha=0.2)
         plt.title(title)
@@ -539,31 +538,30 @@ class DataFrame:
         else:
             data_filtered = self._filter(event_name=event_name)
 
-        players = self._outfits_loaded[self._outfits_loaded.index.isin(self._outfits.values())].players
-        vals = [[[0, 0]], [[0, 0]], [[0, 0]]]
-        for p in range(len(players)):
-            for i, row in self._filter(data=data_filtered, args={column: players.iloc[p].index}).iterrows():
+        vals = {}
+        for f in self._outfits.keys():
+            val = [[0, 0]]
+            players = self._outfits_loaded.loc[self._outfits[f]].players
+            for i, row in self._filter(data=data_filtered, args={column: players.index}).iterrows():
                 if row.timestamp < t_start: continue
-                val_old = vals[p][-1][0]
-                if event_name != 'Death':
-                    if agg_fun == 'sum':
-                        val_new = val_old + row.amount
-                    elif agg_fun == 'count':
-                        val_new = val_old + 1
-                    else:
-                        raise AttributeError(
-                            'Invalid aggregation function \'{}\'. Use \'sum\' or \'count\'.'.format(agg_fun))
-                else:
+                val_old = val[-1][0]
+                if agg_fun == 'sum':
+                    val_new = val_old + row.amount
+                elif agg_fun == 'count':
                     val_new = val_old + 1
-                #vals[p].append([val_old, (row.timestamp - t_start).total_seconds() / 60])
-                vals[p].append([val_new, (row.timestamp - t_start).total_seconds() / 60])
+                else:
+                    raise AttributeError(
+                        'Invalid aggregation function \'{}\'. Use \'sum\' or \'count\'.'.format(agg_fun))
+                val.append([val_new, (row.timestamp - t_start).total_seconds() / 60])
+            vals[f] = val
         return vals
 
     def _substract_timeline(self, val1, val2):
-        sub = [[[0, 0]], [[0, 0]], [[0, 0]]]
-        for o in range(3):
-            v1 = np.array(val1[o])
-            v2 = np.array(val2[o])
+        subs = {}
+        for f in self._outfits.keys():
+            sub = [[0, 0]]
+            v1 = np.array(val1[f])
+            v2 = np.array(val2[f])
             v1_idx = 0
             v2_idx = 0
             while True:
@@ -574,14 +572,15 @@ class DataFrame:
                 t_v2_next = v2[v2_idx + 1, 1]
                 if t_v1_next < t_v2_next:
                     v1_idx += 1
-                    sub[o].append([sub[o][-1][0]+1, t_v1_next])
+                    sub.append([sub[-1][0]+1, t_v1_next])
                 elif t_v1_next > t_v2_next:
                     v2_idx += 1
-                    sub[o].append([sub[o][-1][0] - 1, t_v2_next])
+                    sub.append([sub[-1][0] - 1, t_v2_next])
                 else:
                     v1_idx += 1
                     v2_idx += 1
-        return sub
+            subs[f] = sub
+        return subs
 
     def _divide_timeline(self, val1, val2):
         frac = [[[0, 0]], [[0, 0]], [[0, 0]]]
