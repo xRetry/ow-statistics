@@ -13,6 +13,7 @@ class DataFrame:
     _loadouts: pd.DataFrame or None
     _weapons: pd.DataFrame or None
     _vehicles: pd.DataFrame or None
+    _exp_ids: Dict[str, pd.DataFrame]
 
     def __init__(self, files):
         self._census_url = 'http://census.daybreakgames.com/get/ps2:v2/{}/?{}c:limit={}'
@@ -34,6 +35,7 @@ class DataFrame:
             'NC': None,
             'TR': None
         }
+        self._exp_ids = {}
         self._outfits_loaded = pd.DataFrame(columns=['outfit_tag', 'outfit_id', 'faction', 'players']).set_index('outfit_tag')
         self._colors = {
             'VS': 'purple',
@@ -99,7 +101,6 @@ class DataFrame:
 
     ''' Public Plotting Methods '''
 
-    # TODO: Fix spike at the end
     def plot_timeline_facility(self, figsize=(14, 5)):
         self._data_check()
         data_captures = self._filter(event_name='FacilityControl')
@@ -107,7 +108,7 @@ class DataFrame:
         n_bases = [[[0, 0]], [[0, 0]], [[0, 0]]]
         for i, row in data_captures[
             (data_captures.timestamp > t_open) &
-            (data_captures.timestamp < t_end)
+            (data_captures.timestamp < t_end-pd.Timedelta('00:00:05'))
         ].iterrows():
             if int(row.new_faction_id) == 4: break
             if row.old_faction_id == row.new_faction_id: continue
@@ -156,14 +157,16 @@ class DataFrame:
         self._data_check()
         event_name = 'Death'
         column = 'character_id'
+        title = 'Timeline of Deaths'
         sub_idx = None
         if with_revives:
             event_name = [event_name, '*Revive']
             column = [column, column]
+            title = title + ' (minus Revives)'
             sub_idx = [0, 1]
         self._plot_timeline(
             event_name,
-            'Timeline of Deaths',
+            title,
             'Amount of Deaths',
             column=column,
             sub_idx=sub_idx,
@@ -211,11 +214,23 @@ class DataFrame:
 
     def plot_timeline_kdr(self, with_revives=True, figsize=(14, 5)):
         self._data_check()
+        event_name = ['Death', 'Death']
+        column = ['attacker_character_id', 'character_id']
+        title = 'Timeline of KDR'
+        sub_idx = None
+        div_idx = [0, 1]
+        if with_revives:
+            event_name = event_name + ['*Revive']
+            column = column + ['character_id']
+            title = title + ' (minus Revives)'
+            sub_idx = [1, 2]
         self._plot_timeline(
-            ['Death', 'Death'],
-            'Timeline of KDR',
+            event_name,
+            title,
             'Kills per Death',
-            column=['attacker_character_id', 'character_id'],
+            column=column,
+            sub_idx=sub_idx,
+            div_idx=div_idx,
             figsize=figsize)
 
     def plot_timeline_dpr(self, figsize=(14, 5)):
@@ -225,6 +240,7 @@ class DataFrame:
             'Proportion of deaths that got revived',
             'Revives per Deaths',
             column=['character_id', 'character_id'],
+            div_idx=[0, 1],
             climit=[1000, 2],
             figsize=figsize
         )
@@ -426,16 +442,51 @@ class DataFrame:
 
     def _plot_timeline(self, event_name:str or list, title, ylabel, column:str or list='character_id', agg_fun='count', sub_idx:list=None, div_idx:list=None, climit:int or list=100000, figsize=(14, 5)):
         if isinstance(event_name, list):
-            if not isinstance(climit, list): climit = [climit, climit]
             vals = []
             for i in range(len(event_name)):
-                vals.append(self._calc_timeline(event_name[i], column[i], agg_fun=agg_fun, climit=climit[i]))
+                vals.append(self._calc_timeline(event_name[i], column[i], agg_fun=agg_fun, climit=climit))
+
             if sub_idx is not None:
-                vals = self._substract_timeline(vals[sub_idx[0]], vals[sub_idx[1]])
+                vals[sub_idx[0]] = self._substract_timeline(vals[sub_idx[0]], vals[sub_idx[1]])
+                del vals[sub_idx[1]]
             if div_idx is not None:
-                vals = self._divide_timeline(vals[div_idx[0]], vals[div_idx[1]])
+                vals[div_idx[0]] = self._divide_timeline(vals[div_idx[0]], vals[div_idx[1]])
+                del vals[div_idx[1]]
+            if len(vals) > 1:
+                raise ValueError('sub_idx or div_idx incorrect.')
+            vals = vals[0]
         else:
             vals = self._calc_timeline(event_name, column, agg_fun=agg_fun, climit=climit)
+
+        vals = self._discretize_timeline(vals)
+
+        plt.figure(figsize=figsize)
+        for f in self._outfits.keys():
+            plt.plot([v[1] for v in vals[f]], [v[0] for v in vals[f]], c=self._colors[f])
+
+        plt.grid(True, alpha=0.2)
+        plt.title(title)
+        plt.xlabel('Elapsed Time [min]')
+        plt.ylabel(ylabel)
+        plt.show()
+
+    def _plot_timeline_with_respawn(self, event_name:str or list, title, ylabel, column:str or list='character_id', agg_fun='count', sub_idx:list=None, div_idx:list=None, climit:int or list=100000, figsize=(14, 5)):
+        if isinstance(event_name, list):
+            vals = []
+            for i in range(len(event_name)):
+                vals.append(self._calc_timeline_with_respawn(column[i]))
+
+            if sub_idx is not None:
+                vals[sub_idx[0]] = self._substract_timeline(vals[sub_idx[0]], vals[sub_idx[1]])
+                del vals[sub_idx[1]]
+            if div_idx is not None:
+                vals[div_idx[0]] = self._divide_timeline(vals[div_idx[0]], vals[div_idx[1]])
+                del vals[div_idx[1]]
+            if len(vals) > 1:
+                raise ValueError('sub_idx or div_idx incorrect.')
+            vals = vals[0]
+        else:
+            vals = self._calc_timeline_with_respawn(column)
 
         plt.figure(figsize=figsize)
         for f in self._outfits.keys():
@@ -533,7 +584,7 @@ class DataFrame:
     def _calc_timeline(self, event_name, column='character_id', climit=10000, agg_fun='count'):
         t_open, t_start, t_end = self._get_match_time()
         if event_name != 'Death':
-            ids = self._from_census('experience', description=event_name, args={'c:show':'experience_id,description'})
+            ids = self._get_exp_ids(event_name, args={'c:show':'experience_id,description'})
             data_filtered = self._filter(experience_id=ids.index)
         else:
             data_filtered = self._filter(event_name=event_name)
@@ -553,6 +604,26 @@ class DataFrame:
                     raise AttributeError(
                         'Invalid aggregation function \'{}\'. Use \'sum\' or \'count\'.'.format(agg_fun))
                 val.append([val_new, (row.timestamp - t_start).total_seconds() / 60])
+            vals[f] = val
+        return vals
+
+    def _calc_timeline_with_respawn(self, column):
+        t_open, t_start, t_end = self._get_match_time()
+        #column = 'attacker_character_id'
+        t_respawn = pd.Timedelta('00:02:00')
+        df_rev = self._filter(experience_id=self._get_exp_ids('*Revive').index)
+        df = self._filter(event_name='Death')
+        vals = {}
+        for f in self._outfits.keys():
+            val = [[0, 0]]
+            players = self._outfits_loaded.loc[self._outfits[f]].players
+            for i, row in self._filter(data=df, args={column: players.index}).iterrows():
+                if row.timestamp < t_start: continue
+                df_respawn = df_rev[(df_rev.timestamp >= row.timestamp) & (df_rev.timestamp < row.timestamp+t_respawn)]
+                val_new = val[-1][0]
+                if row.character_id not in df_respawn.other_id:
+                    val_new = val_new + 1
+                    val.append([val_new, (row.timestamp - t_start).total_seconds() / 60])
             vals[f] = val
         return vals
 
@@ -583,16 +654,19 @@ class DataFrame:
         return subs
 
     def _divide_timeline(self, val1, val2):
-        frac = [[[0, 0]], [[0, 0]], [[0, 0]]]
-        for o in range(3):
+        fracs = {}
+        for f in self._outfits.keys():
+            frac = [[0, 0]]
+            v1 = np.array(val1[f])
+            v2 = np.array(val2[f])
             t_cur = 0
             k_idx = 0
             d_idx = 0
             while True:
-                if k_idx + 1 == len(val1[o]): break
-                if d_idx + 1 == len(val2[o]): break
-                t_k = val1[o][k_idx + 1][1]
-                t_d = val2[o][d_idx + 1][1]
+                if k_idx + 1 == len(v1): break
+                if d_idx + 1 == len(v2): break
+                t_k = v1[k_idx + 1, 1]
+                t_d = v2[d_idx + 1, 1]
                 if t_k < t_d:
                     k_idx += 1
                     t_cur = t_k
@@ -604,10 +678,23 @@ class DataFrame:
                     d_idx += 1
                     t_cur = t_k
                 try:
-                    frac[o].append([val1[o][k_idx][0] / val2[o][d_idx][0], t_cur])
+                    frac.append([v1[k_idx, 0] / v2[d_idx, 0], t_cur])
                 except ZeroDivisionError:
-                    frac[o].append([val1[o][k_idx][0], t_cur])
-        return frac
+                    frac.append([v1[k_idx, 0], t_cur])
+            fracs[f] = frac
+        return fracs
+
+    def _discretize_timeline(self, vals):
+        vals_dis = {}
+        for f in self._outfits.keys():
+            val = vals[f]
+            val_dis = []
+            for i in range(len(val)-1):
+                val_dis.append(val[i])
+                val_dis.append([val[i][0], val[i+1][1]])
+            val_dis.append(val[-1])
+            vals_dis[f] = val_dis
+        return vals_dis
 
     def _calc_weapon_stats(self, wpn_column, char_column, faction=('VS', 'NC', 'TR'), ids: pd.Series = None):
         players = self._players_from_faction(faction)
@@ -622,7 +709,7 @@ class DataFrame:
         players = self._players_from_faction(faction)
 
         # Transforming Data
-        ids = self._from_census('experience', climit=climit, description=url_name, process=False)
+        ids = self._get_exp_ids(url_name, climit=climit, process=False)
         df = self._filter(
             event_name='GainExperience',
             args={'character_id': players.index, 'experience_id': ids.set_index('experience_id').index}
@@ -907,6 +994,14 @@ class DataFrame:
         if column is not None:
             df = df[column]
         return df
+
+    def _get_exp_ids(self, url_name, args={}, climit=1000, process=True):
+        if url_name in self._exp_ids.keys():
+            ids = self._exp_ids[url_name]
+        else:
+            ids = self._from_census('experience', description=url_name, args=args, process=process, climit=climit)
+            self._exp_ids[url_name] = ids
+        return ids
 
     @property
     def event_names(self):
