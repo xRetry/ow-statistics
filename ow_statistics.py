@@ -409,6 +409,17 @@ class DataFrame:
             faction=factions
         )
 
+    def plot_players_resupply(self, *factions):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            '*Resupply',
+            'count',
+            'Total Amount of Resupplies provided',
+            'Resupplies',
+            y_offset=0.2,
+            faction=factions
+        )
+
     def player_stats(self, *factions, with_revives=True):
         factions = self._verify_factions(factions)
         df = self._player_stats(factions, with_revives=with_revives)
