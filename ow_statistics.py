@@ -147,7 +147,7 @@ class DataFrame:
         self._data_check()
         title = 'Timeline of Kills'
         if with_revives:
-            title = title + ' (minus Revives)'
+            title = title + ' (Revives included)'
         self._plot_timeline(
             'Death',
             title,
@@ -165,7 +165,7 @@ class DataFrame:
         if with_revives:
             #event_name = [event_name, '*Revive']
             #column = [column, column]
-            title = title + ' (minus Revives)'
+            title = title + ' (Revives included)'
             #sub_idx = [0, 1]
         self._plot_timeline(
             event_name,
@@ -226,7 +226,7 @@ class DataFrame:
         if with_revives:
         #    event_name = event_name + ['*Revive']
         #    column = column + ['character_id']
-            title = title + ' (minus Revives)'
+            title = title + ' (Revives included)'
         #    sub_idx = [1, 2]
         self._plot_timeline(
             event_name,
@@ -703,7 +703,7 @@ class DataFrame:
             df = pd.concat([df, data_players])
         if with_revives:
             df_rev = self._calc_exp_stats('*Revive', 'count', char_column='other_id', faction=factions)
-            df['Deaths'] = df['Deaths'].sub(df_rev.set_index('other_id').astype('int64')['amount']).fillna(df['Deaths'])
+            df['Deaths'] = df['Deaths'].sub(df_rev.set_index('other_id').astype('int64')['amount']).fillna(df['Deaths']).astype('int64')
         # Add KDR
         df['KDR'] = (df['Kills'] / df['Deaths'])\
             .replace(np.inf, 0)\
