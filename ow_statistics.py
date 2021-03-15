@@ -480,7 +480,7 @@ class DataFrame:
 
     def _plot_class_stats(self, faction, class_name, loadout_column, char_column, title, xlabel, y_offset=0.2):
         if isinstance(faction, str): faction = [faction]
-        df = self._calc_weapon_stats(loadout_column, char_column, faction=faction, ids=self._get_loadout_ids(column='code_name'))
+        df = self._calc_weapon_stats(loadout_column, char_column, faction=faction, ids=self._get_loadout_ids()['code_name'])
         df_all = []
         for f in faction:
             df_all.append(df[df[loadout_column] == f + ' ' + class_name])
@@ -491,7 +491,7 @@ class DataFrame:
             title,
             xlabel,
             y_offset,
-            color=self._get_players(faction, 'name', 'faction_id')
+            color=self._get_players(faction, 'name', 'faction_id')['faction_id']
         )
 
     def _plot_exp_stats(self, url_name, agg_fun, title, xlabel, faction=('VS', 'NC', 'TR'), y_offset=0.2, climit=200, color='blue'):
@@ -503,7 +503,8 @@ class DataFrame:
             title,
             xlabel,
             y_offset=y_offset,
-            color=self._get_players(faction, index='name', column='faction_id'))
+            color=self._get_players(faction, index='name', column='faction_id')['faction_id']
+        )
 
     def _plot_bar(self, values, labels, title, xlabel, y_offset, figsize=None, color=None):
         if figsize is None:
@@ -513,7 +514,7 @@ class DataFrame:
         blist = plt.barh(labels, values)
         plt.ylim(-1, len(values))
 
-        if isinstance(color, pd.Series):
+        if isinstance(color, pd.Series):  # TODO: change series to dataframe
             ids = color
             for i, l in enumerate(labels):
                 f = ids.loc[l]
