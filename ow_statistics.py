@@ -322,7 +322,7 @@ class DataFrame:
             'Kills'
         )
 
-    def plot_players_la(self, *factions):
+    def plot_players_la(self, *factions, figsize=None):
         factions = self._verify_factions(factions)
         self._plot_class_stats(
             factions,
@@ -330,7 +330,8 @@ class DataFrame:
             'attacker_loadout_id',
             'attacker_character_id',
             'Light Assault Kills',
-            'Kills'
+            'Kills',
+            figsize=figsize
         )
 
     def plot_vehicle_kills(self, *factions):
@@ -400,7 +401,7 @@ class DataFrame:
     def plot_players_spawns(self, *factions):
         factions = self._verify_factions(factions)
         self._plot_exp_stats(
-            ['Squad%20Spawn', 'Spawn%20Bonus'],
+            ['Squad%20Spawn', '*Spawn%20Bonus'],
             'count',
             'Total Amount of Spawn-Ins provided',
             'Spawn-Ins',
@@ -478,7 +479,7 @@ class DataFrame:
             color=ids.set_index('name')['faction_id']
         )
 
-    def _plot_class_stats(self, faction, class_name, loadout_column, char_column, title, xlabel, y_offset=0.2):
+    def _plot_class_stats(self, faction, class_name, loadout_column, char_column, title, xlabel, y_offset=0.2, figsize=None):
         if isinstance(faction, str): faction = [faction]
         df = self._calc_weapon_stats(loadout_column, char_column, faction=faction, ids=self._get_loadout_ids()['code_name'])
         df_all = []
@@ -491,7 +492,8 @@ class DataFrame:
             title,
             xlabel,
             y_offset,
-            color=self._get_players(faction, 'name', 'faction_id')['faction_id']
+            color=self._get_players(faction, 'name', 'faction_id')['faction_id'],
+            figsize=figsize
         )
 
     def _plot_exp_stats(self, url_name, agg_fun, title, xlabel, faction=('VS', 'NC', 'TR'), y_offset=0.2, climit=200, color='blue'):
@@ -944,11 +946,16 @@ class DataFrame:
         return self._get_ids(df, index, column)
 
     def _get_exp_ids(self, url_name, args={}, climit=1000, process=True):
-        if url_name in self._exp_ids.keys():
-            ids = self._exp_ids[url_name]
+        u_n = url_name
+        if isinstance(url_name, list):
+            u_n = ''
+            for u in url_name:
+                u_n += u
+        if u_n in self._exp_ids.keys():
+            ids = self._exp_ids[u_n]
         else:
             ids = self._from_census('experience', description=url_name, args=args, process=process, climit=climit)#.set_index('experience_id')
-            self._exp_ids[url_name] = ids
+            self._exp_ids[u_n] = ids
         return ids
 
     @property
