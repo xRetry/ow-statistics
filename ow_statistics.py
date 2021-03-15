@@ -143,11 +143,14 @@ class DataFrame:
         plt.ylabel('Amount of Facilities')
         plt.show()
 
-    def plot_timeline_kills(self, figsize=(14, 5)):
+    def plot_timeline_kills(self, with_revives=True, figsize=(14, 5)):
         self._data_check()
+        title = 'Timeline of Kills'
+        if with_revives:
+            title = title + ' (minus Revives)'
         self._plot_timeline(
             'Death',
-            'Timeline of Kills',
+            title,
             'Amount of Kills',
             column='attacker_character_id',
             figsize=figsize
@@ -160,17 +163,18 @@ class DataFrame:
         title = 'Timeline of Deaths'
         sub_idx = None
         if with_revives:
-            event_name = [event_name, '*Revive']
-            column = [column, column]
+            #event_name = [event_name, '*Revive']
+            #column = [column, column]
             title = title + ' (minus Revives)'
-            sub_idx = [0, 1]
+            #sub_idx = [0, 1]
         self._plot_timeline(
             event_name,
             title,
             'Amount of Deaths',
             column=column,
             sub_idx=sub_idx,
-            figsize=figsize
+            figsize=figsize,
+            with_revives=with_revives
         )
 
     def plot_timeline_revives(self, figsize=(14, 5)):
@@ -220,10 +224,10 @@ class DataFrame:
         sub_idx = None
         div_idx = [0, 1]
         if with_revives:
-            event_name = event_name + ['*Revive']
-            column = column + ['character_id']
+        #    event_name = event_name + ['*Revive']
+        #    column = column + ['character_id']
             title = title + ' (minus Revives)'
-            sub_idx = [1, 2]
+        #    sub_idx = [1, 2]
         self._plot_timeline(
             event_name,
             title,
@@ -231,6 +235,7 @@ class DataFrame:
             column=column,
             sub_idx=sub_idx,
             div_idx=div_idx,
+            with_revives=with_revives,
             figsize=figsize)
 
     def plot_timeline_dpr(self, figsize=(14, 5)):
@@ -242,6 +247,7 @@ class DataFrame:
             column=['character_id', 'character_id'],
             div_idx=[0, 1],
             climit=[1000, 2],
+            with_revives=False,
             figsize=figsize
         )
 
@@ -255,44 +261,21 @@ class DataFrame:
         self._plot_hist('KDR', bins=bins, figsize=figsize)
 
     def plot_weapon_kills(self, *factions):
-        factions = self._verify_factions(factions)
-        df = self._calc_weapon_stats(
+        self._plot_weapon_stats(
             'attacker_weapon_id',
             'attacker_character_id',
-            faction=factions,
-            ids=self._get_weapon_ids(column='name')
-        )
-        df = df.reset_index()\
-            .groupby('attacker_weapon_id').sum()\
-            .sort_values('index', ascending=True)
-        self._plot_bar(
-            df['index'].values,
-            df.index.values,
-            'Weapon Usage - {}'.format(self._outfits_for_title(factions)),
-            'Kills',
-            0.2,
-            color=self._get_weapon_ids('name', 'faction_id')
+            ids=self._get_weapon_ids(column=['name', 'faction_id']),
+            title='Weapon Usage - {}',
+            faction=factions
         )
 
     def plot_weapon_deaths(self, *factions):
-        factions = self._verify_factions(factions)
-        df = self._calc_weapon_stats(
+        self._plot_weapon_stats(
             'attacker_weapon_id',
             'character_id',
-            faction=factions,
-            ids=self._get_weapon_ids(column='name')
-        )
-        df = df.reset_index()\
-            .groupby('attacker_weapon_id').sum()\
-            .sort_values('index', ascending=True)
-
-        self._plot_bar(
-            df['index'].values,
-            df.index.values,
-            'Death Causes - {}'.format(self._outfits_for_title(factions)),
-            'Deaths',
-            0.2,
-            color=self._get_weapon_ids('name', 'faction_id')
+            ids=self._get_weapon_ids(column=['name', 'faction_id']),
+            title='Death Causes - {}',
+            faction=factions
         )
 
     def plot_players_heavy(self, *factions):
@@ -350,33 +333,25 @@ class DataFrame:
             'Kills'
         )
 
-    def plot_vehicle_kills(self, *factions, color='blue'):
-        factions = self._verify_factions(factions)
-        df = self._calc_weapon_stats('attacker_vehicle_id', 'attacker_character_id', factions, self._get_vehicle_ids(column='name'))
-        df = df.reset_index().groupby('attacker_vehicle_id').sum().sort_values('index', ascending=True)
-        self._plot_bar(
-            df['index'].values,
-            df.index.values,
-            'Vehicle Usage - {}'.format(self._outfits_for_title(factions)),
-            'Kills',
-            0.23,
-            color=color
+    def plot_vehicle_kills(self, *factions):
+        self._plot_weapon_stats(
+            'attacker_vehicle_id',
+            'attacker_character_id',
+            ids=self._get_vehicle_ids(column=['name', 'faction_id']),
+            groupby='attacker_vehicle_id',
+            title='Weapon Usage - {}',
+            faction=factions
         )
 
-    # TODO: Fix method
-    # def _plot_vehicle_deaths(self, *factions, color='blue'):
-    #     factions = self._verify_factions(factions)
-    #     df = self._calc_weapon_stats('attacker_vehicle_id', 'character_id', factions,
-    #                                  self._get_vehicle_ids(column='name'))
-    #     df = df.reset_index().groupby('attacker_vehicle_id').sum().sort_values('index', ascending=True)
-    #     self._plot_bar(
-    #         df['index'].values,
-    #         df.index.values,
-    #         'Vehicle Deaths - {}'.format(self._outfits_for_title(factions)),
-    #         'Kills',
-    #         0.23,
-    #         color=color
-    #     )
+    def plot_vehicle_deaths(self, *factions):
+        self._plot_weapon_stats(
+            'attacker_vehicle_id',
+            'character_id',
+            ids=self._get_vehicle_ids(column=['name', 'faction_id']),
+            groupby='attacker_vehicle_id',
+            title='Death Causes - {}',
+            faction=factions
+        )
 
     def plot_players_vdestruction(self, *factions):
         factions = self._verify_factions(factions)
@@ -440,11 +415,11 @@ class DataFrame:
 
     ''' Private Plotting Methods '''
 
-    def _plot_timeline(self, event_name:str or list, title, ylabel, column:str or list='character_id', agg_fun='count', sub_idx:list=None, div_idx:list=None, climit:int or list=100000, figsize=(14, 5)):
+    def _plot_timeline(self, event_name:str or list, title, ylabel, column:str or list='character_id', agg_fun='count', sub_idx:list=None, div_idx:list=None, climit:int or list=100000, figsize=(14, 5), with_revives=True):
         if isinstance(event_name, list):
             vals = []
             for i in range(len(event_name)):
-                vals.append(self._calc_timeline(event_name[i], column[i], agg_fun=agg_fun, climit=climit))
+                vals.append(self._calc_timeline(event_name[i], column[i], agg_fun=agg_fun, climit=climit, with_revives=with_revives))
 
             if sub_idx is not None:
                 vals[sub_idx[0]] = self._substract_timeline(vals[sub_idx[0]], vals[sub_idx[1]])
@@ -456,37 +431,9 @@ class DataFrame:
                 raise ValueError('sub_idx or div_idx incorrect.')
             vals = vals[0]
         else:
-            vals = self._calc_timeline(event_name, column, agg_fun=agg_fun, climit=climit)
+            vals = self._calc_timeline(event_name, column, agg_fun=agg_fun, climit=climit, with_revives=with_revives)
 
         vals = self._discretize_timeline(vals)
-
-        plt.figure(figsize=figsize)
-        for f in self._outfits.keys():
-            plt.plot([v[1] for v in vals[f]], [v[0] for v in vals[f]], c=self._colors[f])
-
-        plt.grid(True, alpha=0.2)
-        plt.title(title)
-        plt.xlabel('Elapsed Time [min]')
-        plt.ylabel(ylabel)
-        plt.show()
-
-    def _plot_timeline_with_respawn(self, event_name:str or list, title, ylabel, column:str or list='character_id', agg_fun='count', sub_idx:list=None, div_idx:list=None, climit:int or list=100000, figsize=(14, 5)):
-        if isinstance(event_name, list):
-            vals = []
-            for i in range(len(event_name)):
-                vals.append(self._calc_timeline_with_respawn(column[i]))
-
-            if sub_idx is not None:
-                vals[sub_idx[0]] = self._substract_timeline(vals[sub_idx[0]], vals[sub_idx[1]])
-                del vals[sub_idx[1]]
-            if div_idx is not None:
-                vals[div_idx[0]] = self._divide_timeline(vals[div_idx[0]], vals[div_idx[1]])
-                del vals[div_idx[1]]
-            if len(vals) > 1:
-                raise ValueError('sub_idx or div_idx incorrect.')
-            vals = vals[0]
-        else:
-            vals = self._calc_timeline_with_respawn(column)
 
         plt.figure(figsize=figsize)
         for f in self._outfits.keys():
@@ -510,19 +457,26 @@ class DataFrame:
         axs[0].set_title('Distribution of {}'.format(row_name))
         plt.show()
 
-    # def _plot_weapon_stats(self, obj_column, char_column, faction='NC'):
-    #     title = 'Weapons Usage - {}'.format(self._outfits.get(faction))
-    #     xlabel = 'Deaths' if char_column == 'character_id' else 'Kills'
-    #     df = self._calc_weapon_stats(obj_column, char_column, faction=faction, ids=self._get_weapon_ids())
-    #     df = df.reset_index().groupby('attacker_weapon_id').sum().sort_values('index', ascending=True)
-    #     self._plot_bar(
-    #         df['index'].values,
-    #         df.index.values,
-    #         title,
-    #         xlabel,
-    #         0.2,
-    #         color=self._get_weapon_ids(index='name', column='faction_id')
-    #     )
+    def _plot_weapon_stats(self, obj_column, char_column, ids, title, groupby='attacker_weapon_id', faction=('VS', 'NC', 'TR')):
+        faction = self._verify_factions(faction)
+        title = title.format(self._outfits_for_title(faction))
+        xlabel = 'Deaths' if char_column == 'character_id' else 'Kills'
+        df = self._calc_weapon_stats(
+            obj_column,
+            char_column,
+            faction=faction,
+            ids=ids['name']
+        )
+        df = df.groupby(groupby).sum()\
+            .sort_values('index', ascending=True)
+        self._plot_bar(
+            df['index'].values,
+            df.index.values,
+            title,
+            xlabel,
+            0.2,
+            color=ids.set_index('name')['faction_id']
+        )
 
     def _plot_class_stats(self, faction, class_name, loadout_column, char_column, title, xlabel, y_offset=0.2):
         if isinstance(faction, str): faction = [faction]
@@ -581,12 +535,14 @@ class DataFrame:
 
     ''' Calculation Methods '''
 
-    def _calc_timeline(self, event_name, column='character_id', climit=10000, agg_fun='count'):
+    def _calc_timeline(self, event_name, column='character_id', climit=10000, agg_fun='count', with_revives=True):
         t_open, t_start, t_end = self._get_match_time()
         if event_name != 'Death':
             ids = self._get_exp_ids(event_name, args={'c:show':'experience_id,description'})
             data_filtered = self._filter(experience_id=ids.index)
         else:
+            if with_revives:
+                return self._calc_timeline_with_revives(column)
             data_filtered = self._filter(event_name=event_name)
 
         vals = {}
@@ -607,10 +563,9 @@ class DataFrame:
             vals[f] = val
         return vals
 
-    def _calc_timeline_with_respawn(self, column):
+    def _calc_timeline_with_revives(self, column):
         t_open, t_start, t_end = self._get_match_time()
-        #column = 'attacker_character_id'
-        t_respawn = pd.Timedelta('00:02:00')
+        t_respawn = pd.Timedelta('00:00:30')
         df_rev = self._filter(experience_id=self._get_exp_ids('*Revive').index)
         df = self._filter(event_name='Death')
         vals = {}
@@ -621,7 +576,7 @@ class DataFrame:
                 if row.timestamp < t_start: continue
                 df_respawn = df_rev[(df_rev.timestamp >= row.timestamp) & (df_rev.timestamp < row.timestamp+t_respawn)]
                 val_new = val[-1][0]
-                if row.character_id not in df_respawn.other_id:
+                if row.character_id not in df_respawn.other_id.values:
                     val_new = val_new + 1
                     val.append([val_new, (row.timestamp - t_start).total_seconds() / 60])
             vals[f] = val
@@ -696,7 +651,7 @@ class DataFrame:
             vals_dis[f] = val_dis
         return vals_dis
 
-    def _calc_weapon_stats(self, wpn_column, char_column, faction=('VS', 'NC', 'TR'), ids: pd.Series = None):
+    def _calc_weapon_stats(self, wpn_column, char_column, faction=('VS', 'NC', 'TR'), ids:pd.Series=None):
         players = self._players_from_faction(faction)
         df = self._filter(event_name='Death', args={wpn_column: ids.index, char_column: players.index})
         df[wpn_column] = df[wpn_column].replace(ids.to_dict())
@@ -826,6 +781,14 @@ class DataFrame:
             raise KeyError('Invalid input(s) {}. Valid inputs are: {}'.format(wrong, f_vaild))
         return correct
 
+    def _get_ids(self, df, index, column):
+        if isinstance(column, str): column = [column]
+        if index is not None:
+            df = df.reset_index().set_index(index)
+        if column is not None:
+            df = df[column]
+        return df
+
     ''' Data Loading Methods '''
 
     def _from_json(self, files, zone_id=None):
@@ -953,31 +916,19 @@ class DataFrame:
         for f in faction:
             df.append(self._outfits_loaded.loc[self._outfits[f]].players)
         df = pd.concat(df)
-        if index is not None:
-            df = df.reset_index().set_index(index)
-        if column is not None:
-            df = df[column]
-        return df
+        return self._get_ids(df, index, column)
 
     def _get_loadout_ids(self, index=None, column=None):
         if self._loadouts is None:
             self._loadouts = self._from_census('loadout', args={'c:show': 'loadout_id,code_name,faction_id'})
         df = self._loadouts.copy()
-        if index is not None:
-            df = df.reset_index().set_index(index)
-        if column is not None:
-            df = df[column]
-        return df
+        return self._get_ids(df, index, column)
 
     def _get_weapon_ids(self, index=None, column=None):
         if self._weapons is None:
             self._weapons = self._from_census('item', args={'c:show': 'item_id,name.en,faction_id'})
         df = self._weapons.copy()
-        if index is not None:
-            df = df.reset_index().set_index(index)
-        if column is not None:
-            df = df[column]
-        return df
+        return self._get_ids(df, index, column)
 
     def _get_vehicle_ids(self, index=None, column=None):
         if self._vehicles is None:
@@ -988,13 +939,10 @@ class DataFrame:
                     'c:join': 'vehicle_faction^show:faction_id^inject_at:faction_id^list:1'
                 })
             # TODO: Extract faction ids for coloring
+            df.faction_id = df.faction_id.apply(lambda r: r[0]['faction_id'] if len(r) == 1 else '0')
             self._vehicles = df
         df = self._vehicles.copy()
-        if index is not None:
-            df = df.reset_index().set_index(index)
-        if column is not None:
-            df = df[column]
-        return df
+        return self._get_ids(df, index, column)
 
     def _get_exp_ids(self, url_name, args={}, climit=1000, process=True):
         if url_name in self._exp_ids.keys():
