@@ -668,7 +668,7 @@ class DataFrame:
         ids = self._get_exp_ids(url_name, climit=climit, process=False)
         df = self._filter(
             event_name='GainExperience',
-            args={'character_id': players.index, 'experience_id': ids.set_index('experience_id').index}
+            args={'character_id': players.index, 'experience_id': ids.index}
         )
         df[char_column] = df[char_column].replace(players.to_dict()['name'])
         # Grouping
@@ -949,7 +949,7 @@ class DataFrame:
         if url_name in self._exp_ids.keys():
             ids = self._exp_ids[url_name]
         else:
-            ids = self._from_census('experience', description=url_name, args=args, process=process, climit=climit)
+            ids = self._from_census('experience', description=url_name, args=args, process=process, climit=climit).set_index('experience_id')
             self._exp_ids[url_name] = ids
         return ids
 
