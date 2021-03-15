@@ -665,7 +665,7 @@ class DataFrame:
         players = self._players_from_faction(faction)
 
         # Transforming Data
-        ids = self._get_exp_ids(url_name, climit=climit, process=False)
+        ids = self._get_exp_ids(url_name, climit=climit, process=True)
         df = self._filter(
             event_name='GainExperience',
             args={'character_id': players.index, 'experience_id': ids.index}
@@ -854,7 +854,6 @@ class DataFrame:
                         body.format(m),
                         climit
                     ), typ='series')[0])
-                    #print('requesting..', id_category, body.format(m))
                     break
                 except (ConnectionResetError, ValueError):
                     if i == n_max:
@@ -869,7 +868,6 @@ class DataFrame:
                         time.sleep(1)
                     #print('\n')
             if process:
-                ids_new[ids_new.columns[0]] = ids_new[ids_new.columns[0]]
                 ids_new = ids_new.set_index(ids_new.columns[0])
 
             ids = pd.concat([ids, ids_new])
@@ -949,7 +947,7 @@ class DataFrame:
         if url_name in self._exp_ids.keys():
             ids = self._exp_ids[url_name]
         else:
-            ids = self._from_census('experience', description=url_name, args=args, process=process, climit=climit).set_index('experience_id')
+            ids = self._from_census('experience', description=url_name, args=args, process=process, climit=climit)#.set_index('experience_id')
             self._exp_ids[url_name] = ids
         return ids
 
