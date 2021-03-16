@@ -401,7 +401,7 @@ class DataFrame:
     def plot_players_spawns(self, *factions):
         factions = self._verify_factions(factions)
         self._plot_exp_stats(
-            ['Squad%20Spawn', '*Spawn%20Bonus'],
+            ['Squad%20Spawn', '*Spawn%20Bonus', 'Generic%20Npc%20Spawn'],
             'count',
             'Total Amount of Spawn-Ins provided',
             'Spawn-Ins',
@@ -409,7 +409,7 @@ class DataFrame:
             faction=factions
         )
 
-    def plot_players_resupply(self, *factions):
+    def plot_players_resupply(self, *factions, figsize=None):
         factions = self._verify_factions(factions)
         self._plot_exp_stats(
             '*Resupply',
@@ -417,7 +417,56 @@ class DataFrame:
             'Total Amount of Resupplies provided',
             'Resupplies',
             y_offset=0.2,
-            faction=factions
+            faction=factions,
+            figsize=figsize
+        )
+
+    def plot_players_point(self, *factions, figsize=None):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            'Convert%20Capture%20Point',
+            'sum',
+            'Total Amount of Point Flip XP gained (Time on point)',
+            'Point Flip XP',
+            y_offset=0.2,
+            faction=factions,
+            figsize=figsize
+        )
+
+    def plot_players_vdamage(self, *factions, figsize=None):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            '*Damage',
+            'sum',
+            'Amount Vehicle Damage XP received',
+            'Vehicle Damage XP',
+            y_offset=0.2,
+            faction=factions,
+            figsize=figsize
+        )
+
+    def plot_players_spotting(self, *factions, figsize=None):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            '*Spot',
+            'count',
+            'Players who spotted most enemies that died',
+            'Spot XP Ticks',
+            y_offset=0.2,
+            faction=factions,
+            figsize=figsize
+        )
+
+    def plot_players_dogfight(self, *factions, figsize=None):
+        factions = self._verify_factions(factions)
+        self._plot_exp_stats(
+            '*Dogfight',  # 'Convert%20Capture%20Point',
+            'sum',
+            'Players who received most Dogfighter XP',
+            'Dogfighter XP',
+            y_offset=0.2,
+            faction=factions,
+            figsize=figsize
         )
 
     def player_stats(self, *factions, with_revives=True):
@@ -507,7 +556,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def _plot_exp_stats(self, url_name, agg_fun, title, xlabel, faction=('VS', 'NC', 'TR'), y_offset=0.2, climit=200, color='blue'):
+    def _plot_exp_stats(self, url_name, agg_fun, title, xlabel, faction=('VS', 'NC', 'TR'), y_offset=0.2, climit=200, figsize=None):
         if isinstance(faction, str): faction = [faction]
         df = self._calc_exp_stats(url_name, agg_fun, faction=faction, climit=climit)
         self._plot_bar(
@@ -516,12 +565,13 @@ class DataFrame:
             title,
             xlabel,
             y_offset=y_offset,
-            color=self._get_players(faction, index='name', column='faction_id')['faction_id']
+            color=self._get_players(faction, index='name', column='faction_id')['faction_id'],
+            figsize=figsize
         )
 
     def _plot_bar(self, values, labels, title, xlabel, y_offset, figsize=None, color=None):
         if figsize is None:
-            y_size = int(len(labels) * 0.3)
+            y_size = 2 + int(len(labels) * 0.3)
             figsize = (12, y_size)
         plt.figure(figsize=figsize)
         blist = plt.barh(labels, values)
