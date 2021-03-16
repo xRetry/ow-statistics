@@ -77,8 +77,12 @@ class DataFrame:
             for i, k in enumerate(keys):
                 if self._outfits[k] is None:
                     df = self._filter(new_faction_id=i+1)
-                    outfit_id = df[(df.outfit_id != '0')].outfit_id.iloc[0]
-                    outfit_tag = self._load_outfit(outfit_id=outfit_id)
+                    df = df[(df.outfit_id != '0')].outfit_id
+                    if len(df) != 0:
+                        outfit_id = df.iloc[0]
+                        outfit_tag = self._load_outfit(outfit_id=outfit_id)
+                    else:
+                        outfit_tag = None
                     self._outfits[k] = outfit_tag
             t_open, t_start, t_end = self._get_match_time()
             print('Times of loaded match:\nOpen: {}\nStart: {}\nEnd: {}'.format(t_open, t_start, t_end))
@@ -107,7 +111,7 @@ class DataFrame:
         t_open, t_start, t_end = self._get_match_time()
         n_bases = [[[0, 0]], [[0, 0]], [[0, 0]]]
         for i, row in data_captures[
-            (data_captures.timestamp > t_open) &
+            (data_captures.timestamp > t_open+pd.Timedelta('00:00:05')) &
             (data_captures.timestamp < t_end-pd.Timedelta('00:00:05'))
         ].iterrows():
             if int(row.new_faction_id) == 4: break
@@ -498,6 +502,7 @@ class DataFrame:
 
         plt.figure(figsize=figsize)
         for f in self._outfits.keys():
+            if self._outfits[f] is None: continue
             plt.plot([v[1] for v in vals[f]], [v[0] for v in vals[f]], c=self._colors[f])
 
         plt.grid(True, alpha=0.2)
@@ -612,7 +617,8 @@ class DataFrame:
         vals = {}
         for f in self._outfits.keys():
             val = [[0, 0]]
-            players = self._outfits_loaded.loc[self._outfits[f]].players
+            players = self._get_players([f])
+            if players is None: continue
             for i, row in self._filter(data=data_filtered, args={column: players.index}).iterrows():
                 if row.timestamp < t_start: continue
                 val_old = val[-1][0]
@@ -635,6 +641,7 @@ class DataFrame:
         vals = {}
         for f in self._outfits.keys():
             val = [[0, 0]]
+            if self._outfits[f] is None: continue
             players = self._outfits_loaded.loc[self._outfits[f]].players
             for i, row in self._filter(data=df, args={column: players.index}).iterrows():
                 if row.timestamp < t_start: continue
@@ -649,6 +656,7 @@ class DataFrame:
     def _substract_timeline(self, val1, val2):
         subs = {}
         for f in self._outfits.keys():
+            if self._outfits[f] is None: continue
             sub = [[0, 0]]
             v1 = np.array(val1[f])
             v2 = np.array(val2[f])
@@ -675,6 +683,7 @@ class DataFrame:
     def _divide_timeline(self, val1, val2):
         fracs = {}
         for f in self._outfits.keys():
+            if self._outfits[f] is None: continue
             frac = [[0, 0]]
             v1 = np.array(val1[f])
             v2 = np.array(val2[f])
@@ -706,6 +715,7 @@ class DataFrame:
     def _discretize_timeline(self, vals):
         vals_dis = {}
         for f in self._outfits.keys():
+            if self._outfits[f] is None: continue
             val = vals[f]
             val_dis = []
             for i in range(len(val)-1):
@@ -812,7 +822,10 @@ class DataFrame:
         if isinstance(faction, str): faction = [faction]
         players = []
         for f in faction:
+            if self._outfits[f] is None: continue
             players.append(self._outfits_loaded.loc[self._outfits[f]].players)
+        if len(players) == 0:
+            return None
         return pd.concat(players)
 
     def _outfits_for_title(self, faction):
@@ -837,6 +850,8 @@ class DataFrame:
         for f in factions:
             if not isinstance(f, str):
                 raise TypeError('Input has to be a String. Use \'value\' or \"value\"')
+            if self._outfits[f] is None:
+                raise KeyError('Faction {} was not present in this match'.format(f))
             if f not in f_vaild:
                 wrong.append(f)
             else:
@@ -976,7 +991,11 @@ class DataFrame:
     def _get_players(self, faction: list, index=None, column=None):
         df = []
         for f in faction:
+            if self._outfits[f] is None:
+                continue
             df.append(self._outfits_loaded.loc[self._outfits[f]].players)
+        if len(df) == 0:
+            return None
         df = pd.concat(df)
         return self._get_ids(df, index, column)
 
