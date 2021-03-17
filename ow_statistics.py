@@ -473,6 +473,51 @@ class DataFrame:
             figsize=figsize
         )
 
+    def plot_amount_vehicles(self, faction):
+        ids = self._get_vehicle_ids(column=['name', 'faction_id'])
+        self._plot_amount_players('attacker_vehicle_id', ids, [faction], 'Amount of Players per Vehicle', 'Kills')
+
+    def plot_amount_weapons(self, faction):
+        ids = self._get_weapon_ids(column=['name', 'faction_id'])
+        self._plot_amount_players('attacker_weapon_id', ids, [faction], 'Amount of Players per Weapon', 'Kills')
+
+    def plot_amount_class(self, faction, infantry_only=True):
+        ids = self._get_loadout_ids(column=['name'])
+        xlabel = 'Kills'
+        title = 'Amount of Players per Class (based on {})'
+        if infantry_only:
+            xlabel = 'Infantry ' + xlabel
+        self._plot_amount_players(
+            'attacker_loadout_id',
+            ids,
+            [faction],
+            title.format(xlabel),
+            xlabel,
+            infantry_only=infantry_only
+        )
+
+    def plot_amount_spawns(self, faction):
+        self._plot_amount_players(
+            'experience_id',
+            self._get_exp_ids(['Squad%20Spawn', '*Spawn%20Bonus', 'Generic%20Npc%20Spawn']),
+            [faction],
+            'Amount of Players per Spawn XP Type',
+            'Spawn-Ins',
+            event_name='GainExperience',
+            char_column='character_id'
+        )
+
+    def plot_amount_vdestruction(self, faction):
+        self._plot_amount_players(
+            'experience_id',
+            self._get_exp_ids('*Vehicle%20Destruction'),
+            [faction],
+            'Amount of Players per Vehicle Destruction',
+            'Vehicle Destructions',
+            event_name='GainExperience',
+            char_column='character_id'
+        )
+
     def player_stats(self, *factions, with_revives=True):
         factions = self._verify_factions(factions)
         df = self._player_stats(factions, with_revives=with_revives)
@@ -573,6 +618,34 @@ class DataFrame:
             color=self._get_players(faction, index='name', column='faction_id')['faction_id'],
             figsize=figsize
         )
+
+    def _plot_amount_players(self, id_column, ids, factions:list, title, xlabel, event_name='Death', char_column='attacker_character_id', infantry_only=False):
+        factions = self._verify_factions(factions)
+        players = self._get_players(factions)
+        df = self._filter(event_name=event_name, args={char_column: players.index})
+        if infantry_only:
+            df = df[df.attacker_vehicle_id == '0']
+
+        df = df.groupby([id_column, char_column]).count().reset_index()
+        df = df[df[id_column].isin(ids.index)]
+        df[id_column] = df[id_column].replace(ids.name.to_dict())
+        v_names = df.groupby(id_column).sum().reset_index().sort_values('index', ascending=True)[id_column].unique()
+        y_size = 2 + int(len(v_names) * 0.3)
+        figsize = (12, y_size)
+        plt.figure(figsize=figsize)
+        for j, v in enumerate(v_names):
+            left = 0
+            vals = -np.sort(-df[df[id_column] == str(v)]['index'].values)
+            for i in range(len(vals)):
+                plt.barh([v], vals[i], left=left, ec=self._colors[factions[0]], fc='k', linewidth=2)
+                left = left + vals[i]
+            x = left + 1
+            y_offset = 0.1
+            plt.text(x, j - y_offset, str(int(len(vals))))
+        plt.grid(True, axis='x', alpha=0.2)
+        plt.xlabel(xlabel)
+        plt.title(title)
+        plt.show()
 
     def _plot_bar(self, values, labels, title, xlabel, y_offset, figsize=None, color=None):
         if figsize is None:
@@ -777,6 +850,7 @@ class DataFrame:
             df = pd.concat([df, data_players])
         if with_revives:
             df_rev = self._calc_exp_stats('*Revive', 'count', char_column='other_id', faction=factions)
+            df_rev = df_rev[df_rev.other_id.isin(players['name'])]
             df['Deaths'] = df['Deaths'].sub(df_rev.set_index('other_id').astype('int64')['amount']).fillna(df['Deaths']).astype('int64')
         # Add KDR
         df['KDR'] = (df['Kills'] / df['Deaths'])\
@@ -1001,7 +1075,8 @@ class DataFrame:
 
     def _get_loadout_ids(self, index=None, column=None):
         if self._loadouts is None:
-            self._loadouts = self._from_census('loadout', args={'c:show': 'loadout_id,code_name,faction_id'})
+            df = self._from_census('loadout', args={'c:show': 'loadout_id,code_name,faction_id'})
+            self._loadouts = df.rename(columns={'code_name':'name'})
         df = self._loadouts.copy()
         return self._get_ids(df, index, column)
 
@@ -1019,7 +1094,6 @@ class DataFrame:
                     'c:show': 'vehicle_id,name.en',
                     'c:join': 'vehicle_faction^show:faction_id^inject_at:faction_id^list:1'
                 })
-            # TODO: Extract faction ids for coloring
             df.faction_id = df.faction_id.apply(lambda r: r[0]['faction_id'] if len(r) == 1 else '0')
             self._vehicles = df
         df = self._vehicles.copy()
@@ -1035,8 +1109,8 @@ class DataFrame:
             ids = self._exp_ids[u_n]
         else:
             ids = self._from_census('experience', description=url_name, args=args, process=process, climit=climit)#.set_index('experience_id')
-            self._exp_ids[u_n] = ids
-        return ids
+            self._exp_ids[u_n] = ids.rename(columns={'description':'name'})
+        return self._exp_ids[u_n]
 
     @property
     def event_names(self):
