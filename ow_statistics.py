@@ -496,6 +496,22 @@ class DataFrame:
             infantry_only=infantry_only
         )
 
+    def plot_amount_class_death(self, faction, infantry_only=True):
+        ids = self._get_loadout_ids(column=['name'])
+        xlabel = 'Deaths'
+        title = 'Amount of Players per Class (based on {})'
+        if infantry_only:
+            xlabel = 'Infantry ' + xlabel
+        self._plot_amount_players(
+            'character_loadout_id',
+            ids,
+            [faction],
+            title.format(xlabel),
+            xlabel,
+            infantry_only=infantry_only,
+            char_column='character_id'
+        )
+
     def plot_amount_spawns(self, faction):
         self._plot_amount_players(
             'experience_id',
@@ -619,7 +635,7 @@ class DataFrame:
             figsize=figsize
         )
 
-    def _plot_amount_players(self, id_column, ids, factions:list, title, xlabel, event_name='Death', char_column='attacker_character_id', infantry_only=False):
+    def _plot_amount_players(self, id_column, ids, factions:list, title, xlabel, event_name='Death', char_column='attacker_character_id', infantry_only=False, percentage=False):
         factions = self._verify_factions(factions)
         players = self._get_players(factions)
         df = self._filter(event_name=event_name, args={char_column: players.index})
@@ -632,19 +648,32 @@ class DataFrame:
         v_names = df.groupby(id_column).sum().reset_index().sort_values('index', ascending=True)[id_column].unique()
         y_size = 2 + int(len(v_names) * 0.3)
         figsize = (12, y_size)
-        plt.figure(figsize=figsize)
+        fig, ax1 = plt.subplots(figsize=figsize)
+        sec_labels = []
         for j, v in enumerate(v_names):
             left = 0
             vals = -np.sort(-df[df[id_column] == str(v)]['index'].values)
+            sum_vals = sum(vals)
             for i in range(len(vals)):
-                plt.barh([v], vals[i], left=left, ec=self._colors[factions[0]], fc='k', linewidth=2)
-                left = left + vals[i]
-            x = left + 1
-            y_offset = 0.1
-            plt.text(x, j - y_offset, str(int(len(vals))))
-        plt.grid(True, axis='x', alpha=0.2)
-        plt.xlabel(xlabel)
-        plt.title(title)
+                val = vals[i]
+                if percentage:
+                    xlabel = 'Percentage of ' + xlabel
+                    val = vals[i]/sum_vals*100
+                ax1.barh([v], val, height=0.6, left=left, fc=self._colors[factions[0]], ec='k', linewidth=1.5)
+                left = left + val
+            sec_labels.append(len(vals))
+        y_ticks = ax1.get_yticks()
+        y_lims = ax1.get_ylim()
+        ax2 = ax1.twinx()
+        ax2.set_ylim(y_lims)
+        ax2.set_yticks(y_ticks)
+        ax2.set_yticklabels(sec_labels)
+        ax2.set_ylabel('Amount of Players')
+        ax1.grid(True, alpha=0.2)
+        ax1.set_xlabel(xlabel)
+        if percentage:
+            ax1.set_xlim([0, 100])
+        ax1.set_title(title)
         plt.show()
 
     def _plot_bar(self, values, labels, title, xlabel, y_offset, figsize=None, color=None):
