@@ -607,7 +607,7 @@ class DataFrame:
 
     def _plot_class_stats(self, faction, class_name, loadout_column, char_column, title, xlabel, y_offset=0.2, figsize=None):
         if isinstance(faction, str): faction = [faction]
-        df = self._calc_weapon_stats(loadout_column, char_column, faction=faction, ids=self._get_loadout_ids()['code_name'])
+        df = self._calc_weapon_stats(loadout_column, char_column, faction=faction, ids=self._get_loadout_ids()['name'])
         df_all = []
         for f in faction:
             df_all.append(df[df[loadout_column] == f + ' ' + class_name])
